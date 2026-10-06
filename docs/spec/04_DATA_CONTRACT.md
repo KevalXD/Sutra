@@ -1,4 +1,6 @@
-# Sutra - Data Contract
+# Sutra - Current Prototype Data Contract
+
+> This contract documents the existing synthetic flight-recovery frontend. It is not the target rail-and-destination contract. The target product direction and Phase 1 acceptance criteria are in [`../HACKATHON_PRODUCT_PLAN.md`](../HACKATHON_PRODUCT_PLAN.md). Revise this contract as part of Phase 1, before implementing the new workflow.
 
 ## 1. Purpose
 

@@ -4,6 +4,8 @@
 >
 > A work-in-progress frontend prototype for exploring travel disruption and recovery.
 
+> **Hackathon direction:** Sutra is being realigned to PS 4.1 as a rail-first, whole-trip recovery agent covering transport, accommodation, and destination plans. Read the [product plan](docs/HACKATHON_PRODUCT_PLAN.md) for the target experience, rulebook acceptance checks, and staged migration. The current app is still the flight-based prototype described below; it does not monitor live rail or destination events.
+
 ## Check it out on your laptop
 
 You’ll need **Node.js 18.18 or newer** (Node.js 20 LTS recommended) and npm. Check that they’re installed:
@@ -40,7 +42,7 @@ When the server is ready, open **[http://localhost:3000](http://localhost:3000)*
 
 > **First run:** An internet connection is needed to fetch the Google Fonts used by the app.
 
-## Try the demo scenarios
+## Try the current prototype scenarios
 
 Open any of these links while the development server is running:
 
@@ -51,7 +53,7 @@ Open any of these links while the development server is running:
 | No feasible recovery | [localhost:3000/?scenario=infeasible](http://localhost:3000/?scenario=infeasible) | See how the app explains when no option meets the constraints. |
 | Technical error | [localhost:3000/?scenario=error](http://localhost:3000/?scenario=error) | See the error state, then try **Retry**. The retry is expected to succeed. |
 
-The delay scenario is the default, so opening the base URL starts there too. Use **Start over** in the app to replay a flow.
+These are deterministic, user-triggered prototype scenarios—not live disruption detection. The delay scenario is the default, so opening the base URL starts there too. Use **Start over** in the app to replay a flow.
 
 ## Check the current changes
 
@@ -73,6 +75,6 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 ## What this version is
 
-This is an evolving frontend prototype, not a finished travel service. Its `/api/*` routes currently use local mock data so the scenarios can be explored without connecting to an external backend. The API client can be pointed at a backend later with `NEXT_PUBLIC_API_BASE`; leave it unset for the built-in demo.
+This is an evolving frontend prototype, not a finished travel service. The current fixtures represent a flight itinerary and local mock recovery data; they do not implement the rail-first trip creation, destination-incident detection, or live monitoring described in the hackathon plan. Its `/api/*` routes currently use local mock data so the scenarios can be explored without connecting to an external backend. The API client can be pointed at a backend later with `NEXT_PUBLIC_API_BASE`; leave it unset for the built-in demo.
 
 The interface is designed to work on mobile and desktop. The current product brief, UI and technical specifications are in [`docs/spec/`](docs/spec/), and implementation details and known limitations are in [`IMPLEMENTATION_NOTES.md`](IMPLEMENTATION_NOTES.md).
