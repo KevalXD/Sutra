@@ -149,3 +149,113 @@ Any new feature must answer all four questions before implementation:
 4. What existing must-have work might it displace?
 
 If the feature cannot win that trade-off, it waits.
+
+## D-020: Round 1 plan freeze
+
+**Status:** FROZEN
+
+The red-team review is closed. The product scope, domain semantics, architecture boundary, AI boundary, golden scenario, terminology, and Round 1 non-goals are now frozen.
+
+The implementation team moves from planning to execution.
+
+Reference: `docs/planning/12_FINAL_FREEZE.md`.
+
+## D-021: Canonical domain contract
+
+**Status:** FROZEN
+
+The target model separates itinerary items from transport details:
+
+```text
+Trip
+├── ItineraryItem
+│   ├── TransportBooking
+│   │   └── TransportLeg[]
+│   ├── AccommodationBooking
+│   └── ActivityCommitment
+├── Dependency[]
+└── ConstraintSet
+```
+
+Round 1 transport mode is `rail`.
+
+Impact state and recovery change are separate semantics so an item may be affected without being changed or cancelled.
+
+The final contract is defined in `docs/planning/12_FINAL_FREEZE.md`.
+
+## D-022: Canonical Recovery Run API
+
+**Status:** FROZEN
+
+The public application contract is:
+
+```text
+GET  /api/v1/trips/:tripId
+POST /api/v1/recovery-runs
+GET  /api/v1/recovery-runs/:runId
+```
+
+The frontend starts one Recovery Run. Internal disruption, alternative, validation, and recovery stages are orchestrated by the application/backend layer and are not separate user-driven business operations.
+
+## D-023: AI decision contract
+
+**Status:** FROZEN
+
+AI only ranks/explains candidates that deterministic logic has already marked feasible.
+
+The AI cannot:
+
+- establish hard feasibility;
+- override a failed hard constraint;
+- invent candidates;
+- invent prices or availability;
+- change booking state.
+
+Every AI output is post-validated.
+
+If AI is unavailable or invalid, deterministic fallback ranking is used and explicitly marked as fallback.
+
+## D-024: Golden demo scenario
+
+**Status:** FROZEN
+
+The canonical scenario is `golden-rail-delay-01`.
+
+It is a synthetic multi-leg rail journey with a downstream hotel, a 120-minute first-leg delay, two feasible recovery candidates, and multiple hard-constraint failures among rejected candidates.
+
+The exact fixture and expected outcomes are recorded in `docs/planning/12_FINAL_FREEZE.md`.
+
+## D-025: Terminology and outcome semantics
+
+**Status:** FROZEN
+
+The following terms are authoritative:
+
+```text
+DisruptionKind:
+  delay | cancellation
+
+ImpactState:
+  UNCHANGED | AFFECTED | DISRUPTED
+
+RecoveryChange:
+  UNCHANGED | CHANGED | REPLACED | CANCELLED
+
+RecoveryStatus:
+  RECOVERED | NO_FEASIBLE_RECOVERY | TECHNICAL_ERROR
+```
+
+Impact state and recovery change must not be collapsed into one status.
+
+## D-026: Documentation source-of-truth
+
+**Status:** FROZEN
+
+For Round 1 implementation:
+
+1. DevHack rulebook is authoritative for competition requirements.
+2. `docs/planning/` is authoritative for Sutra product and engineering decisions.
+3. `docs/planning/12_FINAL_FREEZE.md` is the final implementation contract.
+4. `docs/spec/04_DATA_CONTRACT.md` remains a transitional description of the current prototype until the migration is completed.
+
+The current prototype may remain flight-based during migration, but no new target implementation may extend the legacy flight contract.

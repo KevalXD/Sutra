@@ -1,6 +1,12 @@
 # Sutra - Current Prototype Data Contract
 
-> This contract documents the existing synthetic flight-recovery frontend. It is not the target rail-and-destination contract. The target product direction and Phase 1 acceptance criteria are in [`../HACKATHON_PRODUCT_PLAN.md`](../HACKATHON_PRODUCT_PLAN.md). Revise this contract as part of Phase 1, before implementing the new workflow.
+> **Status: TRANSITIONAL PROTOTYPE CONTRACT**
+>
+> This file documents the existing synthetic flight-recovery frontend. It is not the target Round 1 contract.
+>
+> The authoritative Round 1 target contract is `docs/planning/12_FINAL_FREEZE.md`.
+>
+> During migration, do not extend the legacy flight-oriented shapes for new Round 1 work. Reconcile the implementation with the frozen contract first.
 
 ## 1. Purpose
 
