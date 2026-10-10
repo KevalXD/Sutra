@@ -2,10 +2,10 @@
 
 ## Rail-first presentation bridge (October 2026)
 
-- Added `lib/rail-presentation.ts`, a typed, frontend-only adapter from the frozen normalized rail fixture to the existing presentation view model. It projects transport, accommodation, constraints, disruption impact, and returned candidate facts without implementing recovery selection or constraint validation in React.
-- Updated `hooks/use-recovery-flow.ts` to retain the existing API calls and their technical-error/retry behavior while rendering the frozen rail fixture until Nithesh's normalized recovery-run response is available. This is explicitly an integration bridge: the current `/api/*` handlers remain legacy flight-prototype handlers and were not modified.
+- Added `lib/rail-presentation.ts`, a typed, frontend-only adapter that projects normalized trip transport, accommodation, activity, and constraint facts into the existing presentation model. It does not create disruption, candidate, or recovery data.
+- `hooks/use-recovery-flow.ts` now renders every trip, disruption, candidate set, recovery status, and selected candidate returned by the API. The current `/api/*` handlers remain legacy flight-prototype handlers, so the normalized rail fixture is preserved but is not substituted for those returned results.
 - Updated the journey, disruption, and constraint copy to rail-first language. The rail fixture now shows RAIL-A (Mangaluru Central → Hassan Junction), RAIL-B (Hassan Junction → Mysuru Junction), HOTEL-1 accommodation, ₹500 maximum extra budget, 19:00 latest arrival, no overnight travel, and earlier-arrival preference.
-- Cancellation, no-feasible, and technical-error surfaces remain distinct. Cancellation is presented as a simulated rail cancellation; no-feasible recovery renders only fixture candidates already marked infeasible; retry continues to invoke the existing API action.
+- Cancellation, no-feasible, and technical-error surfaces remain distinct. Retry continues to invoke the API action.
 - Added an explicit webpack alias alongside the TypeScript alias in `next.config.mjs`. This fixes production bundling resolution for the existing `@/…` imports.
 
 ### Verification — October 2026
@@ -16,7 +16,14 @@
 
 ### Remaining integration dependency
 
-Nithesh's authoritative normalized API response must replace the temporary fixture branch in `use-recovery-flow.ts`. At that point the adapter can consume the actual `Trip`, impact, candidates, recommendation metadata, and recovery status directly; no visual component or backend handler needs to be rewritten for that handoff.
+Nithesh must provide the authoritative normalized rail `Trip`, impact, candidate, recovery-status, and recommendation response envelope. Until then, the UI truthfully renders the existing legacy API output rather than claiming the golden rail fixture was executed. Mayank must provide deterministic normalized cancellation and no-feasible fixture outcomes before those rail scenarios can be demonstrated end-to-end.
+
+### Scenario integration correction — October 2026
+
+- Removed the ignored-response path: the flow now renders the payload returned from each API call instead of replacing it with scenario-dependent rail fixture data.
+- A recovered response is rejected as a technical error if its selected candidate is missing or not feasible in the returned alternatives. Infeasibility is now derived only from the returned `result.feasible` value.
+- The trip-only rail adapter no longer fabricates impact, candidates, recommendation, or recovery results. Existing UI labels now identify the returned transport kind instead of calling a legacy flight response a rail booking.
+- `npm run typecheck` and `npm run lint` passed. `npm run build` again stopped only at `getaddrinfo ENOTFOUND fonts.googleapis.com` while `next/font` fetched IBM Plex Mono, Instrument Sans, and Inter; the production-dependent QA scripts could not run without that build.
 
 ### Presentation correction pass — October 2026
 

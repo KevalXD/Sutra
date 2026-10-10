@@ -51,7 +51,7 @@ export function Hero({ trip }: { trip?: Itinerary }) {
     <section aria-label="Sutra" className="relative isolate overflow-hidden pb-6 pt-28 md:pt-36">
       <div className="relative z-10 grid items-center gap-6 md:grid-cols-[minmax(0,1.25fr)_minmax(17rem,0.75fr)] md:gap-4">
         <div className="min-w-0">
-          <p className="font-mono text-[12px] uppercase tracking-[0.2em] text-green-bright">Rail disruption recovery</p>
+          <p className="font-mono text-[12px] uppercase tracking-[0.2em] text-green-bright">Travel disruption recovery</p>
           <h1 className="mt-5 max-w-4xl font-display text-[clamp(2.5rem,5.6vw,4.25rem)] font-semibold leading-[0.98] tracking-tight text-ink">
             <span className="block">When travel</span>
             <span className="block"><TextLoop words={["breaks,", "is delayed,", "is cancelled,"]} className="text-green-bright" /></span>
@@ -86,7 +86,6 @@ export function TripOverview({ trip, diffs, disruption, highlightId, cta }: { tr
         <div><dt className="text-[13px] text-muted">Latest arrival</dt>{c.mustBeAt?.map(g => (
           <dd key={g.label} className="mt-1 font-display text-xl">{g.label}<span className="block font-mono text-[12px] text-muted">{placeName(g.city)} by {hm(g.arriveBy)}, {day(g.arriveBy)}</span></dd>))}</div>
       </dl>
-      <p className="font-mono text-[12px] text-muted">Soft preference · earlier arrival</p>
       {cta}
     </Section>
   );
@@ -96,13 +95,14 @@ export function TripOverview({ trip, diffs, disruption, highlightId, cta }: { tr
 export function DisruptionEvent({ analysis, trip, highlightId, onHighlight, cta }: { analysis: DisruptionAnalysis; trip: Itinerary; highlightId?: string; onHighlight: (id?: string) => void; cta?: ReactNode }) {
   const d = analysis.disruption;
   const b = trip.bookings.find(x => x.id === d.bookingId);
-  const title = d.kind === "delay" ? <>Rail booking {d.bookingId} delayed <span className="text-warn">{fmtDuration(d.delayMin ?? 0)}</span></>
-    : <>Rail booking {d.bookingId} <span className="text-danger">cancelled</span></>;
+  const bookingLabel = b?.kind === "train" ? "Rail booking" : b?.kind === "flight" ? "Flight" : "Transport booking";
+  const title = d.kind === "delay" ? <>{bookingLabel} {d.bookingId} delayed <span className="text-warn">{fmtDuration(d.delayMin ?? 0)}</span></>
+    : <>{bookingLabel} {d.bookingId} <span className="text-danger">cancelled</span></>;
   return (
     <Section id="disruption" kicker="02 · Disruption" title={title} tone="danger">
       <p className="max-w-2xl text-[17px] text-ink2">
         {b ? `${placeName(b.origin)} → ${placeName(b.dest)}, originally ${hm(b.start)}–${hm(b.end)}. ` : ""}
-        {d.kind === "delay" ? "This simulated rail service now arrives later than planned." : "This simulated rail service will not operate, so the journey cannot start as booked."}
+        {d.kind === "delay" ? "This simulated service now arrives later than planned." : "This simulated service will not operate, so the journey cannot start as booked."}
         {" "}Affected downstream: <span className="font-mono text-[15px] text-ink">{analysis.affectedBookingIds.join(", ")}</span>.
       </p>
       <AffectedBookings analysis={analysis} trip={trip} highlightId={highlightId} onHighlight={onHighlight} />

@@ -97,6 +97,7 @@ function Leg({ leg, index, diff, disruption, currency, animate, domId, highlight
   const cancelled = hit?.kind === "cancel";
   const delayed = hit?.kind === "delay" && hit.delayMin ? hit.delayMin : 0;
   const Icon = leg.kind === "train" ? TrainFront : Plane;
+  const bookingLabel = leg.kind === "train" ? "Rail booking" : "Flight booking";
   const tone = hit ? "danger" : diff === "NEW" ? "green" : diff === "CHANGED" ? "blue" : diff === "AFFECTED" ? "warn" : "line-strong";
   const lineColor = { danger: "border-danger", green: "border-green", blue: "border-blue", warn: "border-warn", "line-strong": "border-line-strong" }[tone];
   const newStart = delayed ? shiftIso(leg.start, delayed) : leg.start;
@@ -120,7 +121,7 @@ function Leg({ leg, index, diff, disruption, currency, animate, domId, highlight
       <motion.div animate={pulse} transition={{ delay: delay + 0.5, duration: 1.2 }}
         className={`sutra-card rounded-[14px] border bg-surface p-4 transition-shadow lg:mx-2 lg:mt-2 ${highlighted ? "border-warn ring-2 ring-warn/70 shadow-l2" : hit ? "border-danger/60 shadow-l1" : diff === "NEW" ? "border-green/60" : "border-line"}`}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[12px] text-muted">Rail booking · {leg.id}</span>
+          <span className="font-mono text-[12px] text-muted">{bookingLabel} · {leg.id}</span>
           <span className="text-[14px] text-ink2">{leg.origin} → {leg.dest}</span>
           {diff && !hit && <span className="ml-auto"><DiffBadge d={diff} /></span>}
         </div>
