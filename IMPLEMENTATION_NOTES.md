@@ -1,5 +1,23 @@
 # Sutra frontend rebuild — implementation notes
 
+## Rail-first presentation bridge (October 2026)
+
+- Added `lib/rail-presentation.ts`, a typed, frontend-only adapter from the frozen normalized rail fixture to the existing presentation view model. It projects transport, accommodation, constraints, disruption impact, and returned candidate facts without implementing recovery selection or constraint validation in React.
+- Updated `hooks/use-recovery-flow.ts` to retain the existing API calls and their technical-error/retry behavior while rendering the frozen rail fixture until Nithesh's normalized recovery-run response is available. This is explicitly an integration bridge: the current `/api/*` handlers remain legacy flight-prototype handlers and were not modified.
+- Updated the journey, disruption, and constraint copy to rail-first language. The rail fixture now shows RAIL-A (Mangaluru Central → Hassan Junction), RAIL-B (Hassan Junction → Mysuru Junction), HOTEL-1 accommodation, ₹500 maximum extra budget, 19:00 latest arrival, no overnight travel, and earlier-arrival preference.
+- Cancellation, no-feasible, and technical-error surfaces remain distinct. Cancellation is presented as a simulated rail cancellation; no-feasible recovery renders only fixture candidates already marked infeasible; retry continues to invoke the existing API action.
+- Added an explicit webpack alias alongside the TypeScript alias in `next.config.mjs`. This fixes production bundling resolution for the existing `@/…` imports.
+
+### Verification — October 2026
+
+- `npm run typecheck`: passed.
+- `npm run lint`: passed.
+- `npm run build`: source compilation reached `next/font` but could not complete because this sandbox cannot resolve `fonts.googleapis.com` for Instrument Sans, Inter, and IBM Plex Mono. No application compilation error remained.
+
+### Remaining integration dependency
+
+Nithesh's authoritative normalized API response must replace the temporary fixture branch in `use-recovery-flow.ts`. At that point the adapter can consume the actual `Trip`, impact, candidates, recommendation metadata, and recovery status directly; no visual component or backend handler needs to be rewritten for that handoff.
+
 ## Component classification (per 02_UI_DESIGN_SPEC §13 and 05_TECHNICAL_RULES §13)
 
 `core-sutra-ui.md` supplied **install/usage info only** for almost every component (the demos import files that are not in the document, and the shadcn registries are not reachable from the build sandbox). Only Skiper 17 and Skiper 19 include source, and both are marketing demo pages. Nothing below claims original library source was integrated.

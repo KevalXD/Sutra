@@ -70,7 +70,7 @@ export function JourneyBand({ bookings, currency, diffs, disruption, highlightId
             initial={animate ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }} transition={{ delay: animate ? (legs.length + k) * 0.35 + 0.2 : 0 }}
             className={`sutra-card flex flex-wrap items-center gap-x-4 gap-y-1 rounded-[14px] border bg-surface px-4 py-3 transition-shadow ${hl ? "border-warn ring-2 ring-warn/70 shadow-l2" : d === "AFFECTED" ? "border-warn/60" : "border-line"}`}>
             <BedDouble aria-hidden className="size-5 text-blue-bright" />
-            <span className="font-display text-lg">Hotel · {placeName(h.dest)}</span>
+            <span className="font-display text-lg">Accommodation · {placeName(h.dest)}</span>
             <span className="font-mono text-[13px] text-ink2">{day(h.start)} {hm(h.start)} → {day(h.end)} {hm(h.end)}</span>
             <span className="font-mono text-[13px] text-muted">{formatMoney(h.cost, currency)}</span>
             {d && <span className="ml-auto"><DiffBadge d={d} /></span>}
@@ -111,7 +111,7 @@ function Leg({ leg, index, diff, disruption, currency, animate, domId, highlight
       <motion.div animate={pulse} transition={{ delay: delay + 0.5, duration: 1.2 }}
         className={`sutra-card rounded-[14px] border bg-surface p-4 transition-shadow lg:mx-2 lg:mt-2 ${highlighted ? "border-warn ring-2 ring-warn/70 shadow-l2" : hit ? "border-danger/60 shadow-l1" : diff === "NEW" ? "border-green/60" : "border-line"}`}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[12px] text-muted">{leg.id}</span>
+          <span className="font-mono text-[12px] text-muted">Rail booking · {leg.id}</span>
           <span className="text-[14px] text-ink2">{leg.origin} → {leg.dest}</span>
           {diff && !hit && <span className="ml-auto"><DiffBadge d={diff} /></span>}
         </div>

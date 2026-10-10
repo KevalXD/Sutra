@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useReducedMotion } from "motion/react";
 import { ArrowRight, Radar, Search } from "lucide-react";
-import { useRecoveryFlow } from "@/hooks/use-recovery-flow";
+import { useRecoveryFlow } from "../../hooks/use-recovery-flow";
 import type { Diff, Phase, ScenarioId } from "@/lib/types";
 import { Btn, DisruptionEvent, Hero, ImpactTrace, RecoveryAnalysis, TechnicalErrorView, TripOverview } from "./sections";
 import { NoFeasibleView, RecoveryResultView } from "./result";
