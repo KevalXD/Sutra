@@ -1,5 +1,6 @@
-export type BookingKind = "flight" | "train" | "hotel";
-export interface Booking { id: string; kind: BookingKind; origin: string; dest: string; start: string; end: string; cost: number; refundRate?: number }
+export type BookingKind = "flight" | "train" | "hotel" | "activity";
+/** `cost` is optional because normalized itinerary items may not include a fare. */
+export interface Booking { id: string; kind: BookingKind; origin: string; dest: string; start: string; end: string; cost?: number; refundRate?: number }
 export interface TravelGoal { label: string; city: string; arriveBy: string; stayUntil?: string }
 export interface Constraints { home: string; maxExtraBudget: number; noOvernight?: boolean; mustBeAt?: TravelGoal[] }
 export interface Itinerary { id: string; currency: string; bookings: Booking[]; constraints: Constraints }

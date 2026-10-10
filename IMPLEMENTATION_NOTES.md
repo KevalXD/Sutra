@@ -18,6 +18,13 @@
 
 Nithesh's authoritative normalized API response must replace the temporary fixture branch in `use-recovery-flow.ts`. At that point the adapter can consume the actual `Trip`, impact, candidates, recommendation metadata, and recovery status directly; no visual component or backend handler needs to be rewritten for that handoff.
 
+### Presentation correction pass — October 2026
+
+- Unknown itinerary fares are now represented as absent rather than `₹0`; an alternative's `extraCost` is shown only as its additional recovery cost and is no longer copied into a booking as a total fare.
+- Activities have a distinct presentation type and visual treatment; they are no longer coerced into accommodation or included in rail-route and connection calculations.
+- Removed the unsupported fixed selection-order claim from the result screen. The fixture-based delay view identifies the selected earlier-arriving option without attributing the recommendation to AI.
+- Re-ran `npm run typecheck` and `npm run lint`: passed. `npm run build` again stopped at the sandbox DNS failure (`getaddrinfo ENOTFOUND fonts.googleapis.com`) while fetching IBM Plex Mono, Instrument Sans, and Inter through `next/font`.
+
 ## Component classification (per 02_UI_DESIGN_SPEC §13 and 05_TECHNICAL_RULES §13)
 
 `core-sutra-ui.md` supplied **install/usage info only** for almost every component (the demos import files that are not in the document, and the shadcn registries are not reachable from the build sandbox). Only Skiper 17 and Skiper 19 include source, and both are marketing demo pages. Nothing below claims original library source was integrated.

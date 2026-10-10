@@ -38,7 +38,7 @@ export function RepairTimeline() {
 }
 
 const range = (b: Booking) => (b.kind === "hotel" ? `check-in ${hm(b.start)}` : `${hm(b.start)}–${hm(b.end)}`);
-const route = (b: Booking) => (b.kind === "hotel" ? `Hotel · ${placeName(b.dest)}` : `${placeName(b.origin)} → ${placeName(b.dest)}`);
+const route = (b: Booking) => b.kind === "hotel" ? `Accommodation · ${placeName(b.dest)}` : b.kind === "activity" ? `Activity · ${placeName(b.dest)}` : `${placeName(b.origin)} → ${placeName(b.dest)}`;
 
 /** Explicit before/after accounting: unchanged, changed, new, affected, and what was replaced. */
 export function WhatChanged({ original, repaired, diffs }: { original: Booking[]; repaired: Booking[]; diffs: Record<string, Diff> }) {

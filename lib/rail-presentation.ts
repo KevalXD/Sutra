@@ -7,6 +7,7 @@
 import {
   goldenCandidates,
   goldenDisruption,
+  goldenExpectedRecommendation,
   goldenTrip,
 } from "@/lib/domain/fixtures/golden-rail-delay-01";
 import type { ItineraryItem, RecoveryCandidate as DomainCandidate, Trip } from "@/lib/domain/types";
@@ -30,13 +31,13 @@ const asBooking = (item: ItineraryItem) => {
       dest: last?.destination ?? "",
       start: first?.departureAt ?? first?.arrivalAt ?? "",
       end: last?.arrivalAt ?? "",
-      cost: 0,
+      cost: undefined,
     };
   }
   if (item.kind === "accommodation") {
-    return { id: item.id, kind: "hotel" as const, origin: item.location, dest: item.location, start: item.checkInAt, end: item.checkOutAt, cost: 0 };
+    return { id: item.id, kind: "hotel" as const, origin: item.location, dest: item.location, start: item.checkInAt, end: item.checkOutAt, cost: undefined };
   }
-  return { id: item.id, kind: "hotel" as const, origin: item.location, dest: item.location, start: item.startsAt, end: item.endsAt, cost: 0 };
+  return { id: item.id, kind: "activity" as const, origin: item.location, dest: item.location, start: item.startsAt, end: item.endsAt, cost: undefined };
 };
 
 export function presentTrip(trip: Trip = goldenTrip): Itinerary {
@@ -71,7 +72,8 @@ function presentedCandidate(candidate: DomainCandidate, trip: Itinerary): Recove
       id: alternative.id,
       start: alternative.departureAt ?? booking.start,
       end: alternative.arrivalAt,
-      cost: alternative.extraCost,
+      // An alternative has an incremental recovery cost, not a total fare.
+      cost: undefined,
     };
   });
   return {
@@ -117,7 +119,7 @@ export function presentRecovery(scenario: ScenarioId, trip: Itinerary = presentT
   if (!feasible.length) {
     return { result: { feasible: false, itinerary: [], changes: 0, extraCost: 0, affectedBookingIds: ["RAIL-B", "HOTEL-1"], violations: candidates.flatMap((candidate) => candidate.violations), explanation: "No available simulated alternative meets every traveller constraint." } };
   }
-  const selected = feasible[0];
+  const selected = feasible.find((candidate) => candidate.id === goldenExpectedRecommendation.selectedCandidateId) ?? feasible[0];
   return {
     selectedId: selected.id,
     result: {
@@ -129,7 +131,7 @@ export function presentRecovery(scenario: ScenarioId, trip: Itinerary = presentT
       violations: [],
       explanation: scenario === "cancellation"
         ? "This simulated cancellation recovery replaces the affected onward rail booking while preserving the stated constraints."
-        : "This simulated rail recovery preserves the stated constraints and prioritises an earlier arrival.",
+        : "This simulated rail fixture recommends the earlier-arriving feasible option within the stated constraints.",
     },
   };
 }

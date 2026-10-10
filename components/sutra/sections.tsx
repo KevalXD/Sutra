@@ -39,7 +39,7 @@ export function Section({ id, kicker, title, children, tone = "default" }: { id:
   );
 }
 const journeyCities = (bs: Booking[]) => {
-  const legs = bs.filter(b => b.kind !== "hotel");
+  const legs = bs.filter(b => b.kind === "flight" || b.kind === "train");
   return legs.length ? [legs[0].origin, ...legs.map(l => l.dest)] : [];
 };
 
