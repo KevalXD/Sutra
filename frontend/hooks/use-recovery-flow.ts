@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { getAlternatives, getTrip, postDisruption, postRecovery, SutraApiError } from "@/lib/api";
+import { getTrip, postDisruption, postRecovery, SutraApiError } from "@/lib/api";
 import type { ApiError, DisruptionAnalysis, Itinerary, Phase, RecoveryCandidate, RecoveryResult, ScenarioId } from "@/lib/types";
 
 /** Stages 0-1 follow real API calls (alternatives, recovery request); 2-4 are fixed-duration presentation steps. */
@@ -48,8 +48,8 @@ export function useRecoveryFlow(scenario: ScenarioId) {
   const findRecovery = async () => {
     setPhase("RECOVERY_ANALYSIS"); setStage(0);
     try {
-      const alts = await getAlternatives(scenario); setCandidates(alts); setStage(1);
-      const rec = postRecovery(scenario);
+      if (!trip) throw new Error("Live trip is not loaded.");
+      const rec = postRecovery(trip); setStage(1);
       for (let i = 2; i < SEARCH_STAGES.length; i++) { await new Promise(r => setTimeout(r, 450)); setStage(i); }
       const r = await rec;
       setSelectedId(r.selectedId); setResult(r.result);

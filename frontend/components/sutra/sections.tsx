@@ -95,8 +95,8 @@ export function TripOverview({ trip, diffs, disruption, highlightId, cta }: { tr
 export function DisruptionEvent({ analysis, trip, highlightId, onHighlight, cta }: { analysis: DisruptionAnalysis; trip: Itinerary; highlightId?: string; onHighlight: (id?: string) => void; cta?: ReactNode }) {
   const d = analysis.disruption;
   const b = trip.bookings.find(x => x.id === d.bookingId);
-  const title = d.kind === "delay" ? <>Flight {d.bookingId} delayed <span className="text-warn">{fmtDuration(d.delayMin ?? 0)}</span></>
-    : <>Flight {d.bookingId} <span className="text-danger">cancelled</span></>;
+  const title = d.kind === "delay" ? <>Rail {d.bookingId} delayed <span className="text-warn">{fmtDuration(d.delayMin ?? 0)}</span></>
+    : <>Rail {d.bookingId} <span className="text-danger">cancelled</span></>;
   return (
     <Section id="disruption" kicker="02 · Disruption" title={title} tone="danger">
       <p className="max-w-2xl text-[17px] text-ink2">

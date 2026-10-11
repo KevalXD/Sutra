@@ -75,6 +75,6 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 ## What this version is
 
-This is an evolving frontend prototype, not a finished travel service. The current fixtures represent a flight itinerary and local mock recovery data; they do not implement the rail-first trip creation, destination-incident detection, or live monitoring described in the hackathon plan. Its `/api/*` routes currently use local mock data so the scenarios can be explored without connecting to an external backend. The API client can be pointed at a backend later with `NEXT_PUBLIC_API_BASE`; leave it unset for the built-in demo.
+The repository now includes a separate live backend under `backend/`. A real deployment requires PostgreSQL, a rail-provider API, and a configured `NEXT_PUBLIC_API_BASE`. The backend fails closed when those services are unavailable and does not use demo fixtures or browser local storage. See `backend/.env.example` and `backend/README.md` for required configuration.
 
 The interface is designed to work on mobile and desktop. The current product brief, UI and technical specifications are in [`docs/spec/`](docs/spec/), and implementation details and known limitations are in [`IMPLEMENTATION_NOTES.md`](IMPLEMENTATION_NOTES.md).

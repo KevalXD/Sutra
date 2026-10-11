@@ -11,10 +11,6 @@ import { FloatingDock, ProgressiveBlur, StatusMark, TracingBeam, type DockStage,
 import { Grainient } from "./grainient";
 import { Meteors } from "@/components/ui/meteors";
 
-const SCENARIOS: { id: ScenarioId; label: string }[] = [
-  { id: "delay", label: "Delay" }, { id: "cancellation", label: "Cancellation" },
-  { id: "infeasible", label: "No recovery" }, { id: "error", label: "Technical error" },
-];
 const SCROLL_TARGET: Partial<Record<Phase, string>> = {
   DISRUPTION_DETECTED: "disruption", IMPACT_ANALYSIS: "impact", RECOVERY_ANALYSIS: "analysis",
   RECOVERY_READY: "result", NO_FEASIBLE_RECOVERY: "result", TECHNICAL_ERROR: "error",
@@ -87,13 +83,7 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
       <header className="fixed inset-x-0 top-0 z-40">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 md:px-8">
           <Link href="/" className="font-display text-[22px] font-semibold tracking-tight text-ink">Sutra</Link>
-          <nav aria-label="Demo scenario" className="hidden items-center gap-1 text-[13px] sm:flex">
-            <span className="mr-2 font-mono text-[11px] uppercase tracking-widest text-muted">Demo</span>
-            {SCENARIOS.map(s => (
-              <Link key={s.id} href={`/?scenario=${s.id}`} aria-current={scenario === s.id ? "page" : undefined}
-                className={`rounded-[10px] px-3 py-1.5 transition ${scenario === s.id ? "bg-soft text-ink" : "text-muted hover:text-ink"}`}>{s.label}</Link>
-            ))}
-          </nav>
+          <p className="hidden font-mono text-[11px] uppercase tracking-widest text-muted sm:block">Live journey</p>
           <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted" aria-live="polite">
             <StatusMark status={phaseMark} size={16} label={phase} /><span className="hidden md:inline">{phase.replaceAll("_", " ")}</span>
           </div>

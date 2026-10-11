@@ -1,0 +1,98 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 4166 >>
+stream
+BT
+/F1 10 Tf
+50 760 Td
+0 -20 Td (SUTRA WORKFLOW STATUS REPORT) Tj
+0 -20 Td (Project update and test evidence | 11 October 2026) Tj
+0 -20 Td () Tj
+0 -20 Td (EXECUTIVE CONCLUSION) Tj
+0 -20 Td (The repository now has a rail-first deterministic recovery slice and a new versioned API boundary. The canonical fixture is Mangaluru Central to Hassan Junction to Mysuru Junction, with a 120-minute Rail A delay, downstream hotel dependency, feasible and infeasible alternatives, and explicit AI and fallback decision semantics.) Tj
+0 -20 Td (The implementation is not yet fully test-gated. Frontend dependency installation failed in the environment, so TypeScript, ESLint, production build, browser E2E, accessibility, and deployment smoke tests could not be executed in this run.) Tj
+0 -20 Td () Tj
+0 -20 Td (WORK COMPLETED) Tj
+0 -20 Td (W03-W08 Domain foundation - Flight demo data replaced with rail-first fixtures; delay/cancellation, impact relationships, candidate set, budget/deadline/overnight violations, and deterministic selection are represented. Evidence: frontend/lib/mock.ts and frontend/lib/engine.ts) Tj
+0 -20 Td (W09 API boundary - Added GET /api/v1/trips/:tripId and POST /api/v1/recovery-runs with status, impact, candidates, recommendation, recovery plan, actions, and HTTP error semantics. Evidence: frontend/app/api/v1/) Tj
+0 -20 Td (W19-W22 AI boundary - Recovery engine exposes an AI-shaped verified-candidate decision and deterministic fallback mode; infeasible candidates are filtered before selection. Evidence: frontend/lib/engine.ts) Tj
+0 -20 Td (W10-W11 UI domain wording - Disruption view now presents Rail rather than Flight while preserving the journey, impact, comparison, and result surfaces. Evidence: frontend/components/sutra/sections.tsx) Tj
+0 -20 Td (Regression hygiene - git diff --check passed; no new tracked cache or generated dependency directory remains.) Tj
+0 -20 Td () Tj
+0 -20 Td (TEST CASES AND RESULTS) Tj
+0 -20 Td (T01 PASS - Rail fixture contains RAIL-A, RAIL-B, HOTEL-1. Static source assertion passed.) Tj
+0 -20 Td (T02 PASS - Canonical recovery route exposes NO_FEASIBLE_RECOVERY. Static source assertion passed.) Tj
+0 -20 Td (T03 PASS - Trip route exposes not-found semantics. Static source assertion passed.) Tj
+0 -20 Td (T04 PASS - Engine contains deterministic fallback boundary. Static source assertion passed.) Tj
+0 -20 Td (T05 PASS - Patch whitespace and merge hygiene. git diff --check returned clean.) Tj
+0 -20 Td (T06 BLOCKED - TypeScript typecheck. npm run typecheck could not find tsc because node_modules is absent.) Tj
+0 -20 Td (T07 BLOCKED - Dependency installation. npm ci failed with npm EPERM cache access, then failed with npm internal exit-handler error using a workspace cache.) Tj
+0 -20 Td (T08 NOT RUN - ESLint requires installed frontend dependencies.) Tj
+0 -20 Td (T09 NOT RUN - Production build requires installed frontend dependencies and font/build runtime.) Tj
+0 -20 Td (T10 NOT RUN - Browser E2E, responsive, accessibility, and reduced motion require a successful build and browser dependencies.) Tj
+0 -20 Td () Tj
+0 -20 Td (PLANNING WORKFLOW COVERAGE) Tj
+0 -20 Td (M1 Contract Freeze - PARTIAL. Canonical rail fixture and v1 API routes are present; frontend client and hook still use transitional /api routes.) Tj
+0 -20 Td (M2 Golden Vertical Slice - PARTIAL. Rail fixture, impact, candidates, constraints, engine, and UI wording are present; integrated runtime validation is blocked.) Tj
+0 -20 Td (M3 Reliability Core - PARTIAL. Cancellation, no-feasible, and technical-error scenarios remain in the prototype; v1 technical-error path is added, but runtime tests are blocked.) Tj
+0 -20 Td (M4 AI Layer - PARTIAL. Verified-feasible selection and fallback boundary are represented; no external AI provider is connected, by design.) Tj
+0 -20 Td (M5 QA Gate - NOT COMPLETE. Adversarial, data-integrity, AI-output, and four-scenario regression tests still need executable test infrastructure.) Tj
+0 -20 Td (M6-M7 Demo and submission - NOT COMPLETE. Build/deployment validation, demo freeze, evidence set, PPT, and recording remain.) Tj
+0 -20 Td () Tj
+ETendstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 1460 >>
+stream
+BT
+/F1 10 Tf
+50 760 Td
+0 -20 Td (REMAINING IMPLEMENTATION WORK) Tj
+0 -20 Td (1. Move the frontend client and recovery hook from transitional scenario endpoints to the authoritative v1 recovery-run flow.) Tj
+0 -20 Td (2. Add executable unit tests for impact propagation, candidate feasibility, original-itinerary preservation, cancellation, infeasibility, technical error, AI post-validation, and repeatability.) Tj
+0 -20 Td (3. Install dependencies successfully and rerun typecheck, lint, build, browser E2E, responsive, accessibility, and reduced-motion checks.) Tj
+0 -20 Td (4. Resolve compile or runtime findings, then complete the four-scenario regression and deployment smoke test.) Tj
+0 -20 Td (5. Finish requirements traceability, judge-facing UX review, demo freeze, and submission evidence.) Tj
+0 -20 Td () Tj
+0 -20 Td (FILES CHANGED) Tj
+0 -20 Td (frontend/lib/types.ts) Tj
+0 -20 Td (frontend/lib/mock.ts) Tj
+0 -20 Td (frontend/lib/engine.ts) Tj
+0 -20 Td (frontend/components/sutra/sections.tsx) Tj
+0 -20 Td (frontend/app/api/v1/trips/[tripId]/route.ts) Tj
+0 -20 Td (frontend/app/api/v1/recovery-runs/route.ts) Tj
+0 -20 Td () Tj
+0 -20 Td (VERIFICATION STATEMENT) Tj
+0 -20 Td (Implementation claims are limited to the source-level changes and commands recorded above. A green product status requires successful dependency installation followed by the blocked automated checks; those checks are not represented as passed here.) Tj
+ETendstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000010 00000 n 
+0000000062 00000 n 
+0000000128 00000 n 
+0000000201 00000 n 
+0000000330 00000 n 
+0000004552 00000 n 
+0000004681 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+6197
+%%EOF
