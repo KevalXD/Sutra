@@ -1,4 +1,12 @@
-# Sutra - Data Contract
+# Sutra - Current Prototype Data Contract
+
+> **Status: TRANSITIONAL PROTOTYPE CONTRACT**
+>
+> This file documents the existing synthetic flight-recovery frontend. It is not the target Round 1 contract.
+>
+> The authoritative Round 1 target contract is `docs/planning/12_FINAL_FREEZE.md`.
+>
+> During migration, do not extend the legacy flight-oriented shapes for new Round 1 work. Reconcile the implementation with the frozen contract first.
 
 ## 1. Purpose
 

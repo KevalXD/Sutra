@@ -1,314 +1,134 @@
 # Sutra - Product Brief
 
-## 1. Product Identity
+## 1. Product identity
 
 **Product:** Sutra  
-**Context:** An AI Agent for Travel Disruption Recovery
+**Category:** AI agent for travel disruption recovery
+**Hackathon problem:** PS 4.1 - AI Agent for Travel Disruption Recovery
 
-Sutra is a travel recovery agent designed to respond when a disruption breaks the relationships between bookings in a traveller's itinerary.
+> When a journey breaks, Sutra finds a practical way forward.
 
-The product is not a generic travel planner. Its purpose is to detect disruption, understand its downstream impact, evaluate recovery options against traveller constraints, and present a feasible repaired itinerary when one exists.
+Sutra helps a traveller recover a planned trip when a transport disruption or a destination incident affects it. It connects the planned journey, transport and stay bookings, destination activities, traveller constraints, and available alternatives into one explainable recovery plan.
 
-### Core narrative
+This is not a general trip-planning or booking marketplace. Its core job is to detect or simulate a disruption, identify what it affects, evaluate alternatives against explicit constraints, and show the traveller what to do next.
 
-```text
-TRIP
-  ↓
-DISRUPTION
-  ↓
-IMPACT
-  ↓
-RECOVERY
-  ↓
-EXPLANATION
-```
+The hackathon target and phased delivery plan are defined in [`../HACKATHON_PRODUCT_PLAN.md`](../HACKATHON_PRODUCT_PLAN.md). The current frontend remains a synthetic flight-recovery prototype until it is deliberately migrated.
 
-The interface should make this sequence visually obvious.
+## 2. Problem and target traveller journey
 
----
-
-## 2. Problem
-
-Travel disruptions such as flight delays and cancellations can affect more than the disrupted booking itself.
-
-A delay may cause:
-- a missed onward flight or train;
-- a hotel check-in problem;
-- failure to meet a required arrival deadline;
-- an overnight constraint violation;
-- an increase beyond the traveller's allowed recovery budget.
-
-A useful recovery agent therefore needs to reason across the itinerary rather than simply show an alternative for the disrupted booking.
-
----
-
-## 3. Product Goal
-
-Sutra should demonstrate that an AI agent can:
-
-1. Load a traveller's itinerary and constraints.
-2. Detect a disruption.
-3. Identify affected and downstream bookings.
-4. Evaluate recovery candidates.
-5. Validate candidates against explicit traveller constraints.
-6. Produce a repaired itinerary when a feasible recovery exists.
-7. Clearly explain what changed and why.
-8. Explicitly report when no feasible recovery exists.
-9. Distinguish a genuine infeasibility result from a technical failure.
-
-The frontend is a demonstration interface for this workflow. It must not imply capabilities that are not represented by the supplied data or backend contract.
-
----
-
-## 4. Target Demo
-
-The MVP is a focused single-workflow demonstration rather than a complete consumer travel platform.
-
-The primary route is:
+A trip is a chain of dependent commitments, not an isolated ticket:
 
 ```text
-/
+Origin → rail journey → destination → accommodation → planned visit/activity → return
 ```
 
-Demo scenarios are selected through query parameters:
+A train delay or cancellation can break a connection, push arrival past hotel check-in, or make a timed visit impossible. A strike, closure, severe weather event, or other destination incident can make a planned place or activity unavailable even when the train still runs.
+
+Travellers need to know:
+
+- what happened and how the system knows;
+- which parts of their plan are affected and why;
+- which alternatives are actually available in the demonstration;
+- whether those alternatives meet their budget, timing, destination, and other stated constraints;
+- what changed and which actions still require their approval.
+
+## 3. Product outcome
+
+Given a trip and traveller constraints, Sutra produces a clear, evidence-labelled recovery plan after a disruption.
 
 ```text
-/?scenario=delay
-/?scenario=cancellation
+TRIP PLAN
+   ↓
+DISRUPTION SIGNAL
+   ↓
+AFFECTED BOOKINGS AND PLANS
+   ↓
+ALTERNATIVES + CONSTRAINT CHECKS
+   ↓
+RECOVERY ITINERARY + TRAVELLER ACTIONS
 ```
 
-The default experience may use the deterministic simulator when no live backend is available.
+The system must distinguish a known disruption from an unverified signal, a completed search with no feasible option, and a technical failure. It must never describe seeded or simulated data as live information.
 
-There are no separate frontend pages for disruption, analysis, alternatives, and recovery. These are stages of one continuous recovery workflow.
+## 4. Hackathon deliverable mapping
 
----
+| PS 4.1 expectation | Sutra must demonstrate |
+| --- | --- |
+| Detect or simulate travel disruptions | A clearly labelled, repeatable rail or destination-incident trigger; show incident type, affected place/booking, time, and source or simulation label. |
+| Identify affected bookings | Trace the incident through the trip and explain each affected rail leg, stay, connection, or destination activity. |
+| AI-driven alternative search and decision flow | Search the available demo alternatives, apply traveller constraints, use an AI step to choose/rank among valid candidates, and explain the selected option in plain language. |
+| Recovery itinerary and traveller actions | Show the updated sequence, differences from the original, cost/time/constraint impact, and actions the traveller must take. |
 
-## 5. Workflow States
+The demo may use deterministic fixtures where live integrations are unavailable, but the interface and presentation must label that boundary honestly. Real-world detection and live availability are future integrations, not assumed capabilities.
 
-The frontend should model the recovery process using these states:
+## 5. Target user flow
 
-```text
-IDLE
-  ↓
-TRIP_LOADED
-  ↓
-DISRUPTION_DETECTED
-  ↓
-IMPACT_ANALYSIS
-  ↓
-RECOVERY_ANALYSIS
-  ↓
-RECOVERY_READY
-```
+1. **Create a trip.** The traveller enters or edits a structured plan: rail legs, accommodation, planned destination visit, dates/times, and constraints. Manual entry is the first prototype input; file import is optional future scope.
+2. **Monitor or simulate.** Sutra checks the configured disruption feed when one exists. For the guaranteed hackathon path, the traveller or judge can trigger a named, deterministic rail-delay, rail-cancellation, or destination-incident scenario.
+3. **Review the signal.** Show what was reported, its source or simulation status, event time, affected location/booking, and any uncertainty.
+4. **Review impact.** Trace which bookings and plans are affected. Make the relationship between the event and each impact visible.
+5. **Compare recovery options.** Search the available timetable, stay, or destination alternatives. Enforce hard constraints such as latest arrival and maximum extra budget before recommending an option.
+6. **Review the recovery plan.** Show the revised trip in chronological order, what changed, why the selected option fits, remaining trade-offs, and the traveller actions required.
+7. **Choose next action.** The traveller can accept, edit, or dismiss the proposal. The prototype does not purchase, cancel, or modify a real booking.
 
-Two terminal/error conditions are first-class:
+## 6. Disruption and impact boundaries
 
-```text
-NO_FEASIBLE_RECOVERY
-TECHNICAL_ERROR
-```
+Initial disruption classes:
 
-### State meanings
+- **Rail:** delay or cancellation of a planned rail leg.
+- **Destination:** a time- and place-bounded incident affecting a planned visit or local activity, such as a closure or a reported strike.
 
-**IDLE**
-- No recovery run has started.
-- The user can begin the demo/recovery flow.
+An incident affecting a destination activity must not be presented as proof that a hotel or train booking has been cancelled. Only mark a booking affected when the itinerary relationships and incident facts support that conclusion. If signal quality or impact is uncertain, say so and ask the traveller to verify.
 
-**TRIP_LOADED**
-- The itinerary and traveller constraints are available.
+Every signal shown in a demo should carry provenance appropriate to its source: provider and observed time for live data, or a visible `Simulated demo` label for fixtures.
 
-**DISRUPTION_DETECTED**
-- A disruption has been identified and associated with a booking.
+## 7. Decision and trust rules
 
-**IMPACT_ANALYSIS**
-- Sutra is determining which downstream bookings and constraints are affected.
+- Treat traveller constraints as explicit inputs, not assumptions.
+- Apply hard constraints deterministically before asking AI to rank or explain recovery candidates. The model must only choose from the supplied feasible candidates; validate its response against that set.
+- The hackathon demo must make the AI's role real and specific (for example, selecting among feasible candidates and generating a grounded explanation). A deterministic fallback protects the demo if the model is unavailable, but must not be presented as AI-generated.
+- Do not claim an option is bookable unless the connected source confirms availability; static demo inventory must be labelled.
+- Show the important inputs behind the recommendation: incident, impacted commitments, candidate trade-offs, and constraint checks.
+- Keep the final booking decision with the traveller. No automatic purchase, cancellation, or third-party booking changes in the prototype.
+- Keep a completed-but-infeasible result separate from an API, provider, or runtime error.
+- Do not expose hidden model reasoning. Show concise, verifiable reasons and evidence instead.
 
-**RECOVERY_ANALYSIS**
-- Sutra is evaluating candidate recovery options and validating constraints.
+## 8. Required outcomes and success criteria
 
-**RECOVERY_READY**
-- A feasible recovery has been produced.
+A judge should be able to understand, without reading the source:
 
-**NO_FEASIBLE_RECOVERY**
-- The system completed its analysis but could not produce an itinerary satisfying the required constraints.
+1. the trip and constraints the traveller entered;
+2. whether the disruption was live or simulated, and its source/time;
+3. which bookings and plans were affected and why;
+4. which alternatives were evaluated and which constraints they pass or fail;
+5. the proposed recovery itinerary, changes, and traveller actions;
+6. what remains uncertain or requires the traveller to confirm.
 
-**TECHNICAL_ERROR**
-- The recovery process could not complete because of a system/API/runtime failure.
-- This must not be presented as "no recovery available."
+The core end-to-end demo is successful when a reviewer can start from a trip, trigger a disruption, see its impact, compare at least two alternatives against constraints, and reach a clearly actionable recovery plan. At least one no-feasible-option or unavailable-data state should be handled honestly rather than presented as a successful recovery.
 
----
+## 9. Scope guardrails
 
-## 6. Recovery Result Priority
+### First hackathon-fit slice
 
-When recovery succeeds, present information in this order:
+- One traveller and one manually created rail-first trip.
+- At least one rail disruption and one destination incident represented by deterministic scenarios.
+- A trip graph containing rail, accommodation, and a planned visit/activity.
+- A small, explicit demo catalogue of alternative rail or destination choices.
+- Hard checks for the agreed demo constraints (at minimum timing and extra budget).
+- One recommended recovery itinerary, alternatives, and traveller actions.
+- Clear simulation/source labels, infeasible state, and technical-error state.
+- A reliable, repeatable demo that does not depend on an external provider.
 
-1. Recovery status
-2. Repaired itinerary
-3. Constraint status
-4. Changes and additional cost
-5. Explanation
-6. Alternatives
+### Not required for the first slice
 
-The interface should make the repaired journey easier to understand than the underlying agent mechanics.
+- Production accounts, payments, or a general-purpose trip marketplace.
+- Automatic booking, cancellation, refund, or ticket issuance.
+- Unverified claims of continuous, real-time monitoring.
+- Broad coverage of every transport mode, country, provider, event type, or disruption.
+- Autonomous action on behalf of a traveller.
 
----
+## 10. Current prototype status
 
-## 7. Impact Model
+The current frontend is a useful workflow and visual-design baseline, not the target rail-and-destination product. It has four deterministic query-parameter scenarios: flight delay, flight cancellation, no feasible recovery, and a retriable technical error. The disruption must be triggered in the UI. It does not monitor live rail status or destination events.
 
-The central impact relationship is:
-
-```text
-Disrupted Booking
-      ↓
-Immediate Effect
-      ↓
-Downstream Booking
-      ↓
-Constraint Impact
-```
-
-Example:
-
-```text
-Flight delayed
-      ↓
-Arrival moves later
-      ↓
-Train connection becomes unreachable
-      ↓
-"Must arrive by" constraint is violated
-```
-
-This relationship should be reflected visually in the interface.
-
----
-
-## 8. Agent Activity
-
-Sutra may display concise operational activity while analysis is running, for example:
-
-```text
-Checking affected bookings...
-Tracing downstream connections...
-Evaluating recovery candidates...
-Validating traveller constraints...
-Recovery found.
-```
-
-These are interface status messages, not hidden chain-of-thought.
-
-Do not expose private model reasoning, internal deliberation, hidden prompts, or fabricated reasoning traces.
-
----
-
-## 9. No-Feasible-Recovery Experience
-
-When no feasible recovery exists, the interface must clearly communicate:
-
-- that analysis completed;
-- that no candidate satisfied the required constraints;
-- which constraints could not be satisfied;
-- any relevant affected bookings;
-- that the result is not a technical error.
-
-Do not show a success state with an invalid itinerary.
-
----
-
-## 10. Technical Error Experience
-
-Technical errors should communicate:
-
-- the recovery request could not be completed;
-- the problem is technical rather than a travel feasibility result;
-- the user can retry where appropriate.
-
-Do not convert HTTP/API/runtime failures into `NO_FEASIBLE_RECOVERY`.
-
----
-
-## 11. Product Personality
-
-The visual and verbal personality is:
-
-**Luxury Travel × Intelligent Operations × Cinematic Restraint**
-
-Sutra should feel:
-- calm;
-- precise;
-- intelligent;
-- operational;
-- premium;
-- trustworthy;
-- controlled.
-
-Avoid:
-- generic AI SaaS styling;
-- excessive glassmorphism;
-- giant rounded cards everywhere;
-- neon cyberpunk;
-- purple/cyan "AI" gradients;
-- decorative particles everywhere;
-- unnecessary 3D;
-- fake terminal-log aesthetics;
-- dense generic dashboards.
-
----
-
-## 12. MVP Scope
-
-### In scope
-
-- One primary workflow.
-- Delay and cancellation demo scenarios.
-- Trip overview.
-- Disruption display.
-- Impact analysis.
-- Recovery analysis.
-- Feasible recovery result.
-- No-feasible-recovery result.
-- Technical-error state.
-- Responsive desktop-first interface.
-- Deterministic simulator.
-- API abstraction for future backend integration.
-- Accessible motion and reduced-motion handling.
-
-### Out of scope
-
-- User accounts.
-- Authentication.
-- Profile/settings pages.
-- Payment.
-- Booking purchases.
-- Real-world booking issuance.
-- Direct frontend calls to third-party travel APIs.
-- A consumer-grade itinerary management platform.
-- Guaranteed live airline/rail/hotel data.
-
----
-
-## 13. Demo Data Philosophy
-
-The deterministic simulator is the guaranteed demonstration path.
-
-Optional live enrichment may be introduced later, but the core demo must not depend on paid or trial-only APIs or on an external provider being available during judging.
-
-The UI must consume the Sutra API/data abstraction rather than coupling components directly to third-party providers.
-
----
-
-## 14. Success Criteria
-
-A successful frontend implementation should allow a reviewer to understand, without reading source code:
-
-1. What trip is being recovered.
-2. What went wrong.
-3. What downstream impact occurred.
-4. What Sutra evaluated.
-5. Whether recovery is feasible.
-6. What the repaired itinerary is.
-7. What changed.
-8. Whether traveller constraints remain satisfied.
-9. Why the result was produced at a useful, user-facing level.
-
-The product should feel like one coherent recovery system rather than a collection of unrelated UI components.
+Do not remove the current implementation until the replacement end-to-end flow is designed and verified. See [`../HACKATHON_PRODUCT_PLAN.md`](../HACKATHON_PRODUCT_PLAN.md) for the migration sequence and demo target.
