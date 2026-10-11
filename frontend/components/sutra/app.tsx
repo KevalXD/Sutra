@@ -83,7 +83,11 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
       <header className="fixed inset-x-0 top-0 z-40">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 md:px-8">
           <Link href="/" className="font-display text-[22px] font-semibold tracking-tight text-ink">Sutra</Link>
-          <p className="hidden font-mono text-[11px] uppercase tracking-widest text-muted sm:block">Live journey</p>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <p className="hidden font-mono text-[11px] uppercase tracking-widest text-muted sm:block">Live journey</p>
+            <Link href="/login" className="font-mono text-[11px] uppercase tracking-wider text-muted transition hover:text-ink">Sign in</Link>
+            <Link href="/signup" className="rounded-[10px] border border-line-strong px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-ink2 transition hover:bg-soft hover:text-ink">Create account</Link>
+          </div>
           <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted" aria-live="polite">
             <StatusMark status={phaseMark} size={16} label={phase} /><span className="hidden md:inline">{phase.replaceAll("_", " ")}</span>
           </div>

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getTrip, postDisruption, postRecovery, SutraApiError } from "@/lib/api";
 import type { ApiError, DisruptionAnalysis, Itinerary, Phase, RecoveryCandidate, RecoveryResult, ScenarioId } from "@/lib/types";
 
-/** Stages 0-1 follow real API calls (alternatives, recovery request); 2-4 are fixed-duration presentation steps. */
+/** Stages represent the real request lifecycle; the final stage is set when the backend response arrives. */
 export const SEARCH_STAGES = [
   "Checking affected bookings",
   "Tracing downstream connections",
@@ -49,10 +49,9 @@ export function useRecoveryFlow(scenario: ScenarioId) {
     setPhase("RECOVERY_ANALYSIS"); setStage(0);
     try {
       if (!trip) throw new Error("Live trip is not loaded.");
-      const rec = postRecovery(trip); setStage(1);
-      for (let i = 2; i < SEARCH_STAGES.length; i++) { await new Promise(r => setTimeout(r, 450)); setStage(i); }
+      const rec = postRecovery(trip, analysis?.disruption); setStage(1);
       const r = await rec;
-      setSelectedId(r.selectedId); setResult(r.result);
+      setCandidates(r.candidates); setStage(SEARCH_STAGES.length - 1); setSelectedId(r.selectedId); setResult(r.result);
       setPhase(r.result.feasible ? "RECOVERY_READY" : "NO_FEASIBLE_RECOVERY");
     } catch (e) { fail(e); }
   };

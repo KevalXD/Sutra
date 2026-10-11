@@ -29,6 +29,10 @@ const schema = z.object({
   AI_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
   FRONTEND_ORIGIN: z.string().default("http://localhost:3000"),
   FIXTURE_TRIP_ID: z.string().default("trip-golden-rail-delay-01"),
+  SESSION_TTL_HOURS: z.coerce.number().positive().default(24 * 7),
+  COOKIE_SECURE: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
+  AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
 });
 
 export const config = schema.parse(process.env);

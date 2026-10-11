@@ -1,22 +1,37 @@
-# Sutra live backend
+# Sutra backend
 
-This service is the live boundary for Sutra. It does not contain demo trips, mock candidates, browser local storage, or an in-memory persistence fallback. A request fails closed when PostgreSQL or the configured rail provider is unavailable.
+The backend owns the recovery domain and exposes the API consumed by the frontend. The default configuration is a reproducible synthetic fixture: it requires no database, railway provider, or AI credentials and never presents fixture results as live schedules or ticket inventory.
 
-## Required setup
+## Offline demo
 
-1. Copy `.env.example` to `.env` and provide `DATABASE_URL`, `RAIL_PROVIDER_BASE_URL`, and `RAIL_PROVIDER_API_KEY`.
-2. Add the provider's external trip identifier to the `trips.external_trip_id` column.
-3. Run `npm install`, `npm run db:migrate`, then `npm run dev`.
+```powershell
+Copy-Item .env.example .env
+npm install
+npm run db:migrate # optional; not needed for DATA_MODE=fixture
+npm run dev
+```
 
-The frontend must set `NEXT_PUBLIC_API_BASE` to this service. The legacy Next.js `/api/*` routes are transitional and must not be enabled for a live deployment; set `ENABLE_DEMO_ROUTES=false`.
+The fixture trip is `trip-golden-rail-delay-01`. With `AI_PROVIDER=none`, deterministic ranking selects RC-B. An OpenAI key is optional; when configured and the model selects the earlier feasible option, RC-A is selected. AI failures always fall back to deterministic ranking.
 
-`OPENAI_API_KEY` is required when `AI_REQUIRED=true`. When it is false, the service labels deterministic selection as `DETERMINISTIC_FALLBACK`; it never labels fallback output as AI.
+## Configuration modes
+
+- `DATA_MODE=fixture`, `STORAGE_MODE=memory`: offline hackathon mode.
+- `DATA_MODE=live`: requires `RAIL_PROVIDER_BASE_URL` and `RAIL_PROVIDER_API_KEY`; provider payload mapping remains isolated in `src/rail-provider.ts`.
+- `STORAGE_MODE=postgres`: reserved for durable deployment and requires `DATABASE_URL`. The current HTTP runtime uses memory storage by default, so run history is lost on restart.
+- Real signup/login requires `STORAGE_MODE=postgres`; run `npm run db:migrate` to create `users`, hashed-password, session, and optional run-ownership tables. Sessions are opaque hashed tokens in `HttpOnly`, `SameSite=Lax` cookies and are never placed in browser storage.
+- `AI_PROVIDER=openai`: optional ranking enhancement; `OPENAI_API_KEY` and `OPENAI_MODEL` may be supplied.
 
 ## API
 
-- `GET /health` checks database connectivity and reports provider configuration state.
-- `GET /v1/trips/:tripId` loads a persisted trip and refreshes it from the live rail adapter.
-- `POST /v1/recovery-runs` accepts `{ tripId, tripVersion }`, polls the provider, validates constraints, optionally ranks feasible candidates with AI, persists the run, and returns the recovery result.
-- `GET /v1/recovery-runs/:runId/events` streams persisted recovery-stage events using Server-Sent Events.
+- `GET /health`
+- `GET /v1/trips/:tripId`
+- `GET /v1/trips/:tripId/disruptions`
+- `POST /v1/recovery-runs`
+- `GET /v1/recovery-runs/:runId`
+- `GET /v1/recovery-runs/:runId/events` (SSE lifecycle events)
+- `POST /v1/auth/signup`, `POST /v1/auth/login`, `GET /v1/auth/me`, `POST /v1/auth/logout`
+- `GET /v1/me/recovery-runs` (authenticated)
 
-The provider-specific payload mapping is isolated in `src/rail-provider.ts`; the provider schema must be confirmed before production use.
+Recovery status is one of `RECOVERED`, `NO_FEASIBLE_RECOVERY`, or `TECHNICAL_ERROR`. Synthetic candidates and constraints are independently validated by the backend.
+
+The current domain model does not yet persist user-owned trips. The authenticated dashboard therefore confirms the account and links to the public synthetic recovery workspace without fabricating private journeys or history. Trip ownership must be added before exposing private live itineraries.

@@ -75,6 +75,6 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 ## What this version is
 
-The repository now includes a separate live backend under `backend/`. A real deployment requires PostgreSQL, a rail-provider API, and a configured `NEXT_PUBLIC_API_BASE`. The backend fails closed when those services are unavailable and does not use demo fixtures or browser local storage. See `backend/.env.example` and `backend/README.md` for required configuration.
+The repository includes a separate backend under `backend/`. The default hackathon demo is reproducible synthetic fixture data: it uses no browser local storage, paid AI key, database, or live railway service. Set `NEXT_PUBLIC_API_BASE=http://localhost:4000` and `NEXT_PUBLIC_TRIP_ID=trip-golden-rail-delay-01` in `frontend/.env`. See [backend/.env.example](backend/.env.example) and [backend/README.md](backend/README.md) for fixture, live-provider, and optional PostgreSQL configuration. Synthetic results are not live schedules, ticket inventory, or booking confirmations.
 
 The interface is designed to work on mobile and desktop. The current product brief, UI and technical specifications are in [`docs/spec/`](docs/spec/), and implementation details and known limitations are in [`IMPLEMENTATION_NOTES.md`](IMPLEMENTATION_NOTES.md).

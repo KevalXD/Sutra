@@ -15,7 +15,7 @@ function requireConfig() {
 async function call<T>(path: string, fallback: ApiError, init?: RequestInit): Promise<T> {
   const configuration = requireConfig();
   let response: Response;
-  try { response = await fetch(new URL(path, configuration.base).toString(), { ...init, cache: "no-store" }); }
+  try { response = await fetch(new URL(path, configuration.base).toString(), { ...init, credentials: "include", cache: "no-store" }); }
   catch { throw new SutraApiError(fallback); }
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: string | { code?: string; message?: string } } | null;
@@ -45,7 +45,7 @@ function tripToUi(trip: LiveTrip): Itinerary {
 function candidateToUi(candidate: Record<string, unknown>, original: Itinerary): RecoveryCandidate {
   const violations = Array.isArray(candidate.violations) ? candidate.violations as Array<Record<string, unknown>> : [];
   const items = Array.isArray(candidate.itinerary) ? candidate.itinerary.map(item => itemToBooking(item as Record<string, unknown>)) : original.bookings;
-  const toViolationKind = (kind: string): ViolationKind => (["route", "connection", "hotel", "overnight", "deadline", "budget"] as string[]).includes(kind) ? kind as ViolationKind : "route";
+  const toViolationKind = (kind: string): ViolationKind => ({ ARRIVAL_DEADLINE: "deadline", MAX_EXTRA_BUDGET: "budget", NO_OVERNIGHT: "overnight", CONNECTION: "connection", CHRONOLOGY: "hotel", IDENTITY: "route" }[kind] ?? ([("route"), ("connection"), ("hotel"), ("overnight"), ("deadline"), ("budget")] as string[]).includes(kind) ? kind as ViolationKind : "route");
   return { id: String(candidate.id), label: String(candidate.label ?? ("Provider recovery " + String(candidate.id))), itinerary: items, changes: Object.values((candidate.recoveryChanges ?? {}) as Record<string, unknown>).filter(value => value !== "UNCHANGED").length, extraCost: Number(candidate.extraCost ?? 0), feasible: Boolean(candidate.feasible), violations: violations.map(v => ({ kind: toViolationKind(String(v.kind)), bookingId: String(v.itemId), message: String(v.message) })), affectedBookingIds: [], explanation: "", arrival: String(candidate.finalArrivalAt ?? "") };
 }
 
@@ -56,8 +56,8 @@ export const postDisruption = async (scenario: ScenarioId): Promise<DisruptionAn
   if (!data.disruption) throw new SutraApiError({ code: "NO_LIVE_DISRUPTION", message: "No live disruption is currently available for this journey." });
   return { disruption: data.disruption as Disruption, affectedBookingIds: data.affectedBookingIds, impact: data.impact.map(step => ({ bookingId: String(step.itemId ?? ""), reason: "connection", text: String(step.text ?? step.reason ?? "") })) };
 };
-export const postRecovery = async (trip: Itinerary) => {
-  const live = await call<LiveRecovery>("/v1/recovery-runs", { code: "RECOVERY_SERVICE_UNAVAILABLE", message: "Live recovery could not be calculated." }, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tripId: trip.id, tripVersion: trip.version ?? 1 }) });
+export const postRecovery = async (trip: Itinerary, disruption?: Disruption) => {
+  const live = await call<LiveRecovery>("/v1/recovery-runs", { code: "RECOVERY_SERVICE_UNAVAILABLE", message: "Live recovery could not be calculated." }, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tripId: trip.id, tripVersion: trip.version ?? 1, disruption }) });
   const candidates = live.candidates.map(candidate => candidateToUi(candidate, trip));
   const plan = live.recoveryPlan as Record<string, unknown> | null;
   const result: RecoveryResult = plan ? { feasible: live.status === "RECOVERED", itinerary: candidates.find(c => c.id === live.recommendation?.selectedCandidateId)?.itinerary ?? trip.bookings, changes: Object.values((plan.changes ?? {}) as Record<string, unknown>).filter(value => value !== "UNCHANGED").length, extraCost: Number(plan.extraCost ?? 0), violations: [], explanation: live.recommendation?.reason ?? "Live recovery completed.", affectedBookingIds: [] } : { feasible: false, itinerary: [], changes: 0, extraCost: 0, violations: candidates.flatMap(c => c.violations), explanation: "No feasible live recovery exists.", affectedBookingIds: [] };
