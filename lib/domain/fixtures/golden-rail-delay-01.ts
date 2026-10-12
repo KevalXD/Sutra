@@ -1,7 +1,7 @@
 import type {
   Alternative,
   Disruption,
-  RecoveryCandidate,
+  ValidatedRecoveryCandidate,
   Trip,
 } from "../types";
 
@@ -92,6 +92,7 @@ export const goldenAlternatives: Alternative[] = [
   {
     id: "RC-A-ALT",
     replacementForBookingId: "RAIL-B",
+    departureAt: `${DAY}T15:30:00`,
     arrivalAt: `${DAY}T17:45:00`,
     extraCost: 450,
     source: "SIMULATED_OFFER",
@@ -99,6 +100,7 @@ export const goldenAlternatives: Alternative[] = [
   {
     id: "RC-B-ALT",
     replacementForBookingId: "RAIL-B",
+    departureAt: `${DAY}T16:00:00`,
     arrivalAt: `${DAY}T18:30:00`,
     extraCost: 350,
     source: "SIMULATED_OFFER",
@@ -106,6 +108,7 @@ export const goldenAlternatives: Alternative[] = [
   {
     id: "RC-C-ALT",
     replacementForBookingId: "RAIL-B",
+    departureAt: `${DAY}T17:00:00`,
     arrivalAt: `${DAY}T19:30:00`,
     extraCost: 250,
     source: "SIMULATED_OFFER",
@@ -113,6 +116,7 @@ export const goldenAlternatives: Alternative[] = [
   {
     id: "RC-D-ALT",
     replacementForBookingId: "RAIL-B",
+    departureAt: `${DAY}T21:00:00`,
     arrivalAt: `${DAY}T23:30:00`,
     extraCost: 150,
     source: "SIMULATED_OFFER",
@@ -120,13 +124,14 @@ export const goldenAlternatives: Alternative[] = [
   {
     id: "RC-E-ALT",
     replacementForBookingId: "RAIL-B",
+    departureAt: `${DAY}T15:30:00`,
     arrivalAt: `${DAY}T17:45:00`,
     extraCost: 700,
     source: "SIMULATED_OFFER",
   },
 ];
 
-export const goldenCandidates: RecoveryCandidate[] = [
+export const goldenCandidates: ValidatedRecoveryCandidate[] = [
   {
     id: "RC-A",
     alternatives: [goldenAlternatives[0]],
@@ -179,7 +184,7 @@ export const goldenCandidates: RecoveryCandidate[] = [
     feasible: false,
     violations: [
       {
-        kind: "LATEST_ARRIVAL",
+        kind: "ARRIVAL_DEADLINE",
         itemId: "RAIL-B",
         message: "Final arrival at 19:30 exceeds the 19:00 latest-arrival constraint.",
       },
@@ -203,7 +208,7 @@ export const goldenCandidates: RecoveryCandidate[] = [
     feasible: false,
     violations: [
       {
-        kind: "LATEST_ARRIVAL",
+        kind: "ARRIVAL_DEADLINE",
         itemId: "RAIL-B",
         message: "Final arrival at 23:30 exceeds the 19:00 latest-arrival constraint.",
       },

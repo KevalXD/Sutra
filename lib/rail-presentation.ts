@@ -3,8 +3,8 @@
  * results, recommendation, impact, and feasibility must come from the API.
  */
 import { goldenTrip } from "@/lib/domain/fixtures/golden-rail-delay-01";
-import type { ItineraryItem, Trip } from "@/lib/domain/types";
-import type { Itinerary } from "@/lib/types";
+import type { Disruption, ImpactAnalysis, ItineraryItem, RecoveryRunResult, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
+import type { DisruptionAnalysis, Itinerary, RecoveryCandidate, RecoveryResult } from "@/lib/types";
 
 const asBooking = (item: ItineraryItem) => {
   if (item.kind === "transport") {
@@ -42,4 +42,21 @@ export function presentTrip(trip: Trip = goldenTrip): Itinerary {
       mustBeAt: trip.constraints.latestArrivalAt ? [{ label: "Latest acceptable arrival", city: destinationName, arriveBy: trip.constraints.latestArrivalAt }] : [],
     },
   };
+}
+
+export function presentImpact(disruption: Disruption, impact: ImpactAnalysis): DisruptionAnalysis {
+  return { disruption: { bookingId: disruption.bookingId, kind: disruption.kind === "cancellation" ? "cancel" : "delay", delayMin: disruption.delayMinutes }, affectedBookingIds: impact.affectedItemIds, impact: [{ bookingId: disruption.bookingId, reason: disruption.kind === "cancellation" ? "cancel" : "delay", text: disruption.kind === "cancellation" ? "This simulated rail service is cancelled." : `This simulated rail service is delayed by ${disruption.delayMinutes} minutes.` }, ...impact.reasons.map((reason) => ({ bookingId: reason.itemId, reason: "connection" as const, text: reason.reason }))] };
+}
+function candidateItinerary(trip: Trip, candidate: ValidatedRecoveryCandidate) {
+  return trip.items.map((item) => { const replacement = candidate.alternatives.find((alternative) => alternative.replacementForBookingId === item.id); if (replacement && item.kind === "transport") return { id: replacement.id, kind: "train" as const, origin: item.legs[0].origin, dest: item.legs.at(-1)!.destination, start: replacement.departureAt, end: replacement.arrivalAt }; return asBooking(item); });
+}
+export function presentCandidate(trip: Trip, candidate: ValidatedRecoveryCandidate): RecoveryCandidate {
+  const itinerary = candidateItinerary(trip, candidate);
+  return { id: candidate.id, label: candidate.alternatives.map((alternative) => `Replace ${alternative.replacementForBookingId}`).join(", "), itinerary, changes: Object.values(candidate.recoveryChanges).filter((change) => change !== "UNCHANGED").length, extraCost: candidate.extraCost, violations: candidate.violations.map((violation) => ({ kind: violation.kind === "ARRIVAL_DEADLINE" ? "deadline" : violation.kind === "MAX_EXTRA_BUDGET" ? "budget" : violation.kind === "NO_OVERNIGHT" ? "overnight" : "connection", bookingId: violation.itemId, message: violation.message })), feasible: candidate.feasible, affectedBookingIds: Object.entries(candidate.impactStates).filter(([, state]) => state === "AFFECTED").map(([id]) => id), explanation: "", arrival: candidate.finalArrivalAt };
+}
+export function presentRun(trip: Trip, run: RecoveryRunResult): { result: RecoveryResult; selectedId?: string; candidates: RecoveryCandidate[] } {
+  const candidates = run.candidates.map((candidate) => presentCandidate(trip, candidate)); const violations = candidates.flatMap((candidate) => candidate.violations);
+  if (run.status === "NO_FEASIBLE_RECOVERY") return { candidates, result: { feasible: false, itinerary: [], changes: 0, extraCost: 0, violations, explanation: "No feasible repair exists within the available candidate set.", affectedBookingIds: run.impact.affectedItemIds } };
+  const selected = candidates.find((candidate) => candidate.id === run.recommendation.selectedCandidateId)!;
+  return { candidates, selectedId: selected.id, result: { feasible: true, itinerary: selected.itinerary, changes: selected.changes, extraCost: selected.extraCost, violations: [], explanation: `${run.recommendation.reason} Decision source: ${run.recommendation.decisionSource}.`, affectedBookingIds: run.impact.affectedItemIds } };
 }

@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { motion, useReducedMotion } from "motion/react";

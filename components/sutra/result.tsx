@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import { ArrowRight, CircleSlash, PhoneCall, RotateCcw } from "lucide-react";
 import type { Diff, Itinerary, RecoveryCandidate, RecoveryResult } from "@/lib/types";
 import { diffOf, fmtDuration, formatMoney, hm, layovers, violationLabel } from "@/lib/format";

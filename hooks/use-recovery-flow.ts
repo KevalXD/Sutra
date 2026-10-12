@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { getAlternatives, getTrip, postDisruption, postRecovery, SutraApiError } from "@/lib/api";
+import { getTrip, runScenario, SutraApiError } from "@/lib/api";
 import type { ApiError, DisruptionAnalysis, Itinerary, Phase, RecoveryCandidate, RecoveryResult, ScenarioId } from "@/lib/types";
 
 /** Stages 0-1 follow real API calls (alternatives, recovery request); 2-4 are fixed-duration presentation steps. */
@@ -42,24 +42,33 @@ export function useRecoveryFlow(scenario: ScenarioId) {
   const reload = useCallback(() => setRetries(r => r + 1), []);
 
   const simulateDisruption = async () => {
-    try { setAnalysis(await postDisruption(scenario)); setPhase("DISRUPTION_DETECTED"); } catch (e) { fail(e); }
+    try {
+      const run = await runScenario(scenario, retries);
+      setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result);
+      setPhase("DISRUPTION_DETECTED");
+    } catch (e) { fail(e); }
+  };
+  const retryRecovery = async () => {
+    try {
+      setError(undefined);
+      const run = await runScenario(scenario, retries + 1);
+      setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result);
+      setPhase(run.result.feasible ? "RECOVERY_READY" : "NO_FEASIBLE_RECOVERY");
+    } catch (e) { fail(e); }
   };
   const analyzeImpact = () => setPhase("IMPACT_ANALYSIS");
   const findRecovery = async () => {
     setPhase("RECOVERY_ANALYSIS"); setStage(0);
     try {
-      const alternatives = await getAlternatives(scenario);
-      setCandidates(alternatives); setStage(1);
-      const rec = postRecovery(scenario);
+      setStage(1);
       for (let i = 2; i < SEARCH_STAGES.length; i++) { await new Promise(r => setTimeout(r, 450)); setStage(i); }
-      const r = await rec;
-      if (r.result.feasible && (!r.selectedId || !alternatives.some(candidate => candidate.id === r.selectedId && candidate.feasible))) {
+      if (!result) throw new SutraApiError({ code: "RECOVERY_SERVICE_UNAVAILABLE", message: "Recovery was not available." });
+      if (result.feasible && (!selectedId || !candidates.some(candidate => candidate.id === selectedId && candidate.feasible))) {
         throw new SutraApiError({ code: "RECOVERY_SERVICE_UNAVAILABLE", message: "Recovery returned an invalid recommendation." });
       }
-      setSelectedId(r.selectedId); setResult(r.result);
-      setPhase(r.result.feasible ? "RECOVERY_READY" : "NO_FEASIBLE_RECOVERY");
+      setPhase(result.feasible ? "RECOVERY_READY" : "NO_FEASIBLE_RECOVERY");
     } catch (e) { fail(e); }
   };
 
-  return { phase, trip, analysis, result, candidates, selectedId, stage, error, reload, simulateDisruption, analyzeImpact, findRecovery };
+  return { phase, trip, analysis, result, candidates, selectedId, stage, error, reload, retryRecovery, simulateDisruption, analyzeImpact, findRecovery };
 }

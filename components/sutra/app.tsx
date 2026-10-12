@@ -103,7 +103,7 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
       <main className="relative z-10 mx-auto max-w-6xl px-5 pb-40 md:px-8">
         <Hero trip={trip} />
 
-        {phase === "TECHNICAL_ERROR" && f.error && !trip && <TechnicalErrorView error={f.error} onRetry={f.reload} />}
+        {phase === "TECHNICAL_ERROR" && f.error && !trip && <TechnicalErrorView error={f.error} onRetry={f.retryRecovery} />}
 
         {trip && (
           <TracingBeam>
@@ -121,7 +121,7 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
             {phase === "RECOVERY_ANALYSIS" && <RecoveryAnalysis stage={f.stage} />}
             {phase === "RECOVERY_READY" && result && <RecoveryResultView trip={trip} result={result} candidates={f.candidates} selectedId={f.selectedId} onRestart={restart} />}
             {phase === "NO_FEASIBLE_RECOVERY" && result && <NoFeasibleView trip={trip} result={result} candidates={f.candidates} onRestart={restart} />}
-            {phase === "TECHNICAL_ERROR" && f.error && <TechnicalErrorView error={f.error} onRetry={f.reload} />}
+            {phase === "TECHNICAL_ERROR" && f.error && <TechnicalErrorView error={f.error} onRetry={f.retryRecovery} />}
           </TracingBeam>
         )}
 

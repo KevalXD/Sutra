@@ -38,7 +38,7 @@ export type DependencyKind =
   | "WINDOW";
 
 export type ConstraintKind =
-  | "LATEST_ARRIVAL"
+  | "ARRIVAL_DEADLINE"
   | "MAX_EXTRA_BUDGET"
   | "NO_OVERNIGHT";
 
@@ -68,7 +68,7 @@ export interface TransportLeg {
   bookingId: string;
   origin: string;
   destination: string;
-  departureAt?: string;
+  departureAt: string;
   arrivalAt: string;
 }
 
@@ -117,7 +117,7 @@ export interface Disruption {
 export interface Alternative {
   id: string;
   replacementForBookingId: string;
-  departureAt?: string;
+  departureAt: string;
   arrivalAt: string;
   extraCost: number;
   source: "SIMULATED_OFFER";
@@ -146,3 +146,55 @@ export interface RecoveryRecommendation {
   reason: string;
   tradeoffs?: string[];
 }
+
+export interface ItemTiming { startAt: string; endAt: string }
+export interface ImpactReason { itemId: string; reason: string }
+export interface ImpactAnalysis {
+  disruptedItemIds: string[];
+  affectedItemIds: string[];
+  reasons: ImpactReason[];
+  impactStates: Record<string, ImpactState>;
+  disruptedTimings: Record<string, ItemTiming | null>;
+}
+
+/** A proposal before deterministic feasibility validation. */
+export interface GeneratedRecoveryCandidate {
+  id: string;
+  alternatives: Alternative[];
+  impactStates: Record<string, ImpactState>;
+  recoveryChanges: Record<string, RecoveryChange>;
+  extraCost: number;
+  finalArrivalAt: string;
+}
+
+/** Public candidate shape defined by the frozen API contract. */
+export interface ValidatedRecoveryCandidate extends GeneratedRecoveryCandidate {
+  feasible: boolean;
+  violations: ConstraintViolation[];
+}
+
+export interface ConstraintEvaluation extends ConstraintViolation { passed: boolean }
+export interface RepairedItem {
+  itemId: string; kind: ItineraryItemKind; label: string;
+  impactState: ImpactState; recoveryChange: RecoveryChange;
+  original: ItemTiming; repaired: ItemTiming | null; replacedByAlternativeId?: string;
+}
+export interface RecoveryPlan {
+  selectedCandidateId: string; items: RepairedItem[]; extraCost: number;
+  originalFinalArrivalAt: string; repairedFinalArrivalAt: string;
+  arrivalDeltaMinutes: number; constraintResults: ConstraintEvaluation[];
+}
+export interface TravellerAction {
+  id: string; kind: "BOOK_REPLACEMENT" | "NOTIFY_ACCOMMODATION" | "REVIEW_CANCELLED_BOOKING";
+  itemId: string; description: string; automated: false;
+}
+/** `demoAttempt` only controls the pre-defined transient demo outage retry. */
+export interface RecoveryRunRequest { tripId: string; tripVersion: number; disruption: Disruption; demoAttempt?: number }
+interface RecoveryRunBase { runId: string; tripVersion: number; impact: ImpactAnalysis; candidates: ValidatedRecoveryCandidate[] }
+export interface RecoveredRun extends RecoveryRunBase {
+  status: "RECOVERED"; recommendation: RecoveryRecommendation; recoveryPlan: RecoveryPlan; actions: TravellerAction[];
+}
+export interface NoFeasibleRun extends RecoveryRunBase {
+  status: "NO_FEASIBLE_RECOVERY"; recommendation: null; recoveryPlan: null; actions: [];
+}
+export type RecoveryRunResult = RecoveredRun | NoFeasibleRun;
