@@ -12,7 +12,7 @@ import { SpringCheck, StatusMark } from "./kit";
 import { BorderGlow } from "./card-effects";
 
 const cities = (bs: { kind: string; origin: string; dest: string }[]) => {
-  const legs = bs.filter(b => b.kind !== "hotel");
+  const legs = bs.filter(b => b.kind === "flight" || b.kind === "train");
   return legs.length ? [legs[0].origin, ...legs.map(l => l.dest)] : [];
 };
 const H3 = "font-display text-[clamp(1.5rem,2.6vw,2.25rem)] font-semibold";
@@ -20,7 +20,7 @@ const H3 = "font-display text-[clamp(1.5rem,2.6vw,2.25rem)] font-semibold";
 /** Each line is derived from `result.violations` and the repaired itinerary — nothing is asserted that the data does not show. */
 function constraintChecks(trip: Itinerary, result: RecoveryResult) {
   const c = trip.constraints, cur = trip.currency;
-  const legs = result.itinerary.filter(b => b.kind !== "hotel");
+  const legs = result.itinerary.filter(b => b.kind === "flight" || b.kind === "train");
   const arrival = legs[legs.length - 1]?.end;
   const goal = c.mustBeAt?.[0];
   const lay = layovers(result.itinerary);
@@ -45,7 +45,7 @@ export function RecoveryResultView({ trip, result, candidates, selectedId, onRes
 }) {
   const cur = trip.currency;
   const diffs = Object.fromEntries(result.itinerary.map(b => [b.id, diffOf(b, trip.bookings, result.affectedBookingIds)])) as Record<string, Diff>;
-  const legs = result.itinerary.filter(b => b.kind !== "hotel");
+  const legs = result.itinerary.filter(b => b.kind === "flight" || b.kind === "train");
   const arrival = legs[legs.length - 1]?.end;
   const route = cities(result.itinerary);
   const checks = constraintChecks(trip, result);
@@ -74,9 +74,8 @@ export function RecoveryResultView({ trip, result, candidates, selectedId, onRes
           </ul>
         </div>
         <div>
-          <h3 className={H3}>How it was chosen</h3>
+          <h3 className={H3}>Recovery details</h3>
           <p className="mt-3 text-[17px] leading-relaxed text-ink2">{result.explanation}</p>
-          <p className="mt-3 text-[14px] text-muted">Selection order: fewest changed bookings, then lower extra cost, then candidate ID.</p>
         </div>
       </div>
       <RecoveryComparison candidates={candidates} selectedId={selectedId} trip={trip}

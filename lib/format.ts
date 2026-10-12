@@ -39,7 +39,7 @@ const toMinutes = (iso: string) =>
 
 /** Layover (minutes) between consecutive legs that share a city. Derived from booking times only. */
 export function layovers(bookings: Booking[]): { city: string; minutes: number }[] {
-  const legs = bookings.filter(b => b.kind !== "hotel");
+  const legs = bookings.filter(b => b.kind === "flight" || b.kind === "train");
   const out: { city: string; minutes: number }[] = [];
   for (let i = 1; i < legs.length; i++) {
     if (legs[i - 1].dest === legs[i].origin) out.push({ city: legs[i].origin, minutes: toMinutes(legs[i].start) - toMinutes(legs[i - 1].end) });

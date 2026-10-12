@@ -34,7 +34,7 @@ export function useRecoveryFlow(scenario: ScenarioId) {
     setPhase("IDLE"); setError(undefined); setAnalysis(undefined); setResult(undefined);
     setCandidates([]); setSelectedId(undefined); setStage(0);
     getTrip(scenario, retries)
-      .then(t => { if (alive) { setTrip(t); setPhase("TRIP_LOADED"); } })
+      .then(trip => { if (alive) { setTrip(trip); setPhase("TRIP_LOADED"); } })
       .catch(e => { if (alive) fail(e); });
     return () => { alive = false; };
   }, [scenario, retries]);
@@ -48,10 +48,14 @@ export function useRecoveryFlow(scenario: ScenarioId) {
   const findRecovery = async () => {
     setPhase("RECOVERY_ANALYSIS"); setStage(0);
     try {
-      const alts = await getAlternatives(scenario); setCandidates(alts); setStage(1);
+      const alternatives = await getAlternatives(scenario);
+      setCandidates(alternatives); setStage(1);
       const rec = postRecovery(scenario);
       for (let i = 2; i < SEARCH_STAGES.length; i++) { await new Promise(r => setTimeout(r, 450)); setStage(i); }
       const r = await rec;
+      if (r.result.feasible && (!r.selectedId || !alternatives.some(candidate => candidate.id === r.selectedId && candidate.feasible))) {
+        throw new SutraApiError({ code: "RECOVERY_SERVICE_UNAVAILABLE", message: "Recovery returned an invalid recommendation." });
+      }
       setSelectedId(r.selectedId); setResult(r.result);
       setPhase(r.result.feasible ? "RECOVERY_READY" : "NO_FEASIBLE_RECOVERY");
     } catch (e) { fail(e); }
