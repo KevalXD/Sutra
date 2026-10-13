@@ -11,8 +11,9 @@ const DIFF_STYLE: Record<Diff, string> = {
   CHANGED: "border-blue text-blue-bright",
   NEW: "border-green text-green-bright",
   AFFECTED: "border-warn text-warn",
+  DISRUPTED: "border-warn text-warn",
 };
-export const DIFF_LABEL: Record<Diff, string> = { UNCHANGED: "Unchanged", CHANGED: "Changed", NEW: "New", AFFECTED: "Affected" };
+export const DIFF_LABEL: Record<Diff, string> = { UNCHANGED: "Unchanged", CHANGED: "Changed", NEW: "New", AFFECTED: "Affected", DISRUPTED: "Disrupted" };
 export const DiffBadge = ({ d }: { d: Diff }) => (
   <span className={`rounded-full border px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wide ${DIFF_STYLE[d]}`}>{DIFF_LABEL[d]}</span>
 );
@@ -96,9 +97,11 @@ function Leg({ leg, index, diff, disruption, currency, animate, domId, highlight
   const hit = disruption?.bookingId === leg.id ? disruption : undefined;
   const cancelled = hit?.kind === "cancel";
   const delayed = hit?.kind === "delay" && hit.delayMin ? hit.delayMin : 0;
+  const disrupted = leg.impactState === "DISRUPTED";
+  const hasAuthoritativeTimingChange = leg.originalStart !== undefined || leg.originalEnd !== undefined;
   const Icon = leg.kind === "train" ? TrainFront : Plane;
   const bookingLabel = leg.kind === "train" ? "Rail booking" : "Flight booking";
-  const tone = hit ? "danger" : diff === "NEW" ? "green" : diff === "CHANGED" ? "blue" : diff === "AFFECTED" ? "warn" : "line-strong";
+  const tone = hit ? "danger" : disrupted ? "warn" : diff === "NEW" ? "green" : diff === "CHANGED" ? "blue" : diff === "AFFECTED" ? "warn" : "line-strong";
   const lineColor = { danger: "border-danger", green: "border-green", blue: "border-blue", warn: "border-warn", "line-strong": "border-line-strong" }[tone];
   const newStart = delayed ? shiftIso(leg.start, delayed) : leg.start;
   const newEnd = delayed ? shiftIso(leg.end, delayed) : leg.end;
@@ -123,13 +126,18 @@ function Leg({ leg, index, diff, disruption, currency, animate, domId, highlight
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-[12px] text-muted">{bookingLabel} · {leg.id}</span>
           <span className="text-[14px] text-ink2">{leg.origin} → {leg.dest}</span>
-          {diff && !hit && <span className="ml-auto"><DiffBadge d={diff} /></span>}
+          {hit ? null : disrupted ? <span className="ml-auto rounded-full border border-warn px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wide text-warn">Disrupted</span> : diff && <span className="ml-auto"><DiffBadge d={diff} /></span>}
         </div>
         <div className={`mt-2 font-display text-xl ${cancelled ? "text-muted line-through" : "text-ink"}`}>
           {delayed ? (
             <>
               <span className="mr-2 text-[15px] text-muted line-through">{hm(leg.start)} → {hm(leg.end)}</span>
               <span className="text-warn">{hm(newStart)} → {hm(newEnd)}</span>
+            </>
+          ) : hasAuthoritativeTimingChange ? (
+            <>
+              <span className="mr-2 text-[15px] text-muted line-through">{hm(leg.originalStart ?? leg.start)} → {hm(leg.originalEnd ?? leg.end)}</span>
+              <span className={disrupted ? "text-warn" : "text-ink"}>{hm(leg.start)} → {hm(leg.end)}</span>
             </>
           ) : <>{hm(leg.start)} → {hm(leg.end)}</>}
         </div>
@@ -140,6 +148,12 @@ function Leg({ leg, index, diff, disruption, currency, animate, domId, highlight
           <p className={`mt-3 flex items-center gap-2 text-[14px] font-medium ${cancelled ? "text-danger" : "text-warn"}`}>
             {cancelled ? <Ban aria-hidden className="size-4" /> : <TriangleAlert aria-hidden className="size-4" />}
             {cancelled ? "Cancelled — this leg will not operate" : `Delayed by ${fmtDuration(delayed)}`}
+          </p>
+        )}
+        {!hit && disrupted && (
+          <p className="mt-3 flex items-center gap-2 text-[14px] font-medium text-warn">
+            <TriangleAlert aria-hidden className="size-4" />
+            Disrupted timing — this booking is unchanged by the recovery.
           </p>
         )}
       </motion.div>

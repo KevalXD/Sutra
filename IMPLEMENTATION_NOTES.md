@@ -3,7 +3,7 @@
 ## Rail-first presentation bridge (October 2026)
 
 - Added `lib/rail-presentation.ts`, a typed, frontend-only adapter that projects normalized trip transport, accommodation, activity, and constraint facts into the existing presentation model. It does not create disruption, candidate, or recovery data.
-- `hooks/use-recovery-flow.ts` now renders every trip, disruption, candidate set, recovery status, and selected candidate returned by the API. The current `/api/*` handlers remain legacy flight-prototype handlers, so the normalized rail fixture is preserved but is not substituted for those returned results.
+- `hooks/use-recovery-flow.ts` renders every trip, disruption, candidate set, recovery status, selected candidate, and traveller action returned by the canonical API. It uses only `GET /api/v1/trips/:tripId` and `POST /api/v1/recovery-runs`.
 - Updated the journey, disruption, and constraint copy to rail-first language. The rail fixture now shows RAIL-A (Mangaluru Central → Hassan Junction), RAIL-B (Hassan Junction → Mysuru Junction), HOTEL-1 accommodation, ₹500 maximum extra budget, 19:00 latest arrival, no overnight travel, and earlier-arrival preference.
 - Cancellation, no-feasible, and technical-error surfaces remain distinct. Retry continues to invoke the API action.
 - Added an explicit webpack alias alongside the TypeScript alias in `next.config.mjs`. This fixes production bundling resolution for the existing `@/…` imports.
@@ -60,7 +60,7 @@ GSAP and Lenis were **not** added (05 §8: only when justified). No new runtime 
 - Impact chain: Disrupted booking → Immediate effect → Downstream booking → Constraint impact, revealed sequentially.
 - Result hierarchy: status → repaired path → repaired itinerary → constraint status → explanation → alternatives.
 - `NO_FEASIBLE_RECOVERY` (amber, violated constraints grouped by kind with booking ids, human next step, no success styling) and `TECHNICAL_ERROR` (red, Retry) are visually distinct.
-- Preserved: `/api/*` route handlers, `lib/engine.ts`, `lib/mock.ts`, `lib/api.ts`, `hooks/use-recovery-flow.ts` (improved).
+- Retired: the legacy `/api/trip`, `/api/disruption`, `/api/alternatives`, and `/api/recovery` handlers, together with their obsolete flight mock engine and fixtures. `lib/api.ts` and `hooks/use-recovery-flow.ts` now use the canonical rail recovery API only.
 - Fixed from the previous handoff: `day()` timezone bug (no more `Date` round-trip), StrictMode error-scenario race (retry counter is state-driven), "Start over" link/scenario drop, hardcoded constraint list (now derived from `result.violations`), `.font-mono` precedence.
 
 ## Polish pass (second iteration)
@@ -85,7 +85,7 @@ GSAP and Lenis were **not** added (05 §8: only when justified). No new runtime 
 - No screen-reader (NVDA/VoiceOver) session; axe + keyboard + structure checks only. No Firefox/Safari run (Chromium only). No touch-device test.
 - The headless runs cannot judge animation *feel*; motion was verified functionally (it runs, it respects reduced motion), not aesthetically in real time.
 - Sutra-native components approximate the named patterns; they are not library originals (see classification table).
-- Backend-dependent: request bodies are still `{ scenario }` and `/api/recovery` returns `{ result, selectedId }` (envelope backend-owned/TBD); candidates' `affectedBookingIds` and violation texts are hand-authored mock data; the simulator decides feasibility. `ApiError.code` is a required union here while the contract allows `code?: string; status?: number`.
+- The frontend sends the canonical trip/version/disruption request body to `/api/v1/recovery-runs` and projects its authoritative response for presentation. The deterministic rail simulator remains the source for the configured demo scenarios.
 - Search stages 2–4 are fixed-duration presentation steps (stages 0–1 follow real calls).
 - Hotel shows "Affected" in the repaired itinerary because its booking was affected (times unchanged).
 - Extra scenarios `infeasible` and `error` go beyond the two scenarios named in the spec. Scenario E from the data contract ("no downstream impact") is not built.

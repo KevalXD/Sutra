@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getTrip, runScenario, SutraApiError } from "@/lib/api";
 import type { ApiError, DisruptionAnalysis, Itinerary, Phase, RecoveryCandidate, RecoveryResult, ScenarioId } from "@/lib/types";
 
@@ -21,6 +21,7 @@ export function useRecoveryFlow(scenario: ScenarioId) {
   const [selectedId, setSelectedId] = useState<string>();
   const [stage, setStage] = useState(0);
   const [error, setError] = useState<ApiError>();
+  const recoveryRequestInFlight = useRef(false);
   // Number of user-initiated reloads. Deterministic: StrictMode double-effects reuse the same value.
   const [retries, setRetries] = useState(0);
 
@@ -42,19 +43,25 @@ export function useRecoveryFlow(scenario: ScenarioId) {
   const reload = useCallback(() => setRetries(r => r + 1), []);
 
   const simulateDisruption = async () => {
+    if (recoveryRequestInFlight.current) return;
+    recoveryRequestInFlight.current = true;
     try {
       const run = await runScenario(scenario, retries);
       setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result);
       setPhase("DISRUPTION_DETECTED");
     } catch (e) { fail(e); }
+    finally { recoveryRequestInFlight.current = false; }
   };
   const retryRecovery = async () => {
+    if (recoveryRequestInFlight.current) return;
+    recoveryRequestInFlight.current = true;
     try {
       setError(undefined);
       const run = await runScenario(scenario, retries + 1);
       setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result);
       setPhase(run.result.feasible ? "RECOVERY_READY" : "NO_FEASIBLE_RECOVERY");
     } catch (e) { fail(e); }
+    finally { recoveryRequestInFlight.current = false; }
   };
   const analyzeImpact = () => setPhase("IMPACT_ANALYSIS");
   const findRecovery = async () => {

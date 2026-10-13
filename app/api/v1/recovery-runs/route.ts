@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { recoveryRunOutcome } from "@/lib/recovery/http";
+import { executeRecoveryRun } from "@/lib/recovery/route-runner";
 
 export async function POST(request: Request) {
   const body: unknown = await request.json().catch(() => undefined);
-  const outcome = await recoveryRunOutcome(body);
+  const outcome = await executeRecoveryRun(body);
   return NextResponse.json(outcome.body, { status: outcome.status });
 }

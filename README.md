@@ -55,6 +55,14 @@ Open any of these links while the development server is running:
 
 These are deterministic, user-triggered prototype scenarios—not live disruption detection. The delay scenario is the default, so opening the base URL starts there too. Use **Start over** in the app to replay a flow.
 
+## Optional AI recommendation providers
+
+The recovery engine always validates feasibility before asking an AI provider for a preference-based recommendation. Without an API key it remains fully functional and truthfully reports `DETERMINISTIC_FALLBACK` (RC-B for the golden delay scenario).
+
+Copy `.env.example` to `.env.local` and configure one server-side provider. `SUTRA_AI_PROVIDER=auto` (or unset) prefers Gemini when `GEMINI_API_KEY` is set, otherwise OpenAI when `OPENAI_API_KEY` is set. Set `SUTRA_AI_PROVIDER=gemini` or `openai` to require that provider; a missing selected key emits a safe server diagnostic and retains deterministic fallback. `SUTRA_GEMINI_MODEL` defaults to `gemini-3.8-flash`; `SUTRA_OPENAI_MODEL` defaults to `gpt-4o-mini`.
+
+Keys are read only by the API route and are never included in browser code or recovery responses. A provider receives only already-feasible candidate facts and returns a strict structured selection; the backend independently checks the candidate and all provider-supplied objective claims, then generates the displayed explanation from verified data. Network, timeout, malformed-output, and validation failures fall back safely. There is no runtime switch from a selected, failing provider to the other provider.
+
 ## Check the current changes
 
 From the project folder, run:

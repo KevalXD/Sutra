@@ -4,7 +4,7 @@
  */
 import { goldenTrip } from "@/lib/domain/fixtures/golden-rail-delay-01";
 import type { Disruption, ImpactAnalysis, ItineraryItem, RecoveryRunResult, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
-import type { DisruptionAnalysis, Itinerary, RecoveryCandidate, RecoveryResult } from "@/lib/types";
+import type { ConnectionCheck, DisruptionAnalysis, Itinerary, RecoveryCandidate, RecoveryResult, TravellerAction } from "@/lib/types";
 
 const asBooking = (item: ItineraryItem) => {
   if (item.kind === "transport") {
@@ -48,15 +48,24 @@ export function presentImpact(disruption: Disruption, impact: ImpactAnalysis): D
   return { disruption: { bookingId: disruption.bookingId, kind: disruption.kind === "cancellation" ? "cancel" : "delay", delayMin: disruption.delayMinutes }, affectedBookingIds: impact.affectedItemIds, impact: [{ bookingId: disruption.bookingId, reason: disruption.kind === "cancellation" ? "cancel" : "delay", text: disruption.kind === "cancellation" ? "This simulated rail service is cancelled." : `This simulated rail service is delayed by ${disruption.delayMinutes} minutes.` }, ...impact.reasons.map((reason) => ({ bookingId: reason.itemId, reason: "connection" as const, text: reason.reason }))] };
 }
 function candidateItinerary(trip: Trip, candidate: ValidatedRecoveryCandidate) {
-  return trip.items.map((item) => { const replacement = candidate.alternatives.find((alternative) => alternative.replacementForBookingId === item.id); if (replacement && item.kind === "transport") return { id: replacement.id, kind: "train" as const, origin: item.legs[0].origin, dest: item.legs.at(-1)!.destination, start: replacement.departureAt, end: replacement.arrivalAt }; return asBooking(item); });
+  return trip.items.map((item) => {
+    const original = asBooking(item);
+    const replacement = candidate.alternatives.find((alternative) => alternative.replacementForBookingId === item.id);
+    const repaired = candidate.repairedTimings[item.id];
+    if (replacement && item.kind === "transport") return { ...original, id: replacement.id, start: repaired?.startAt ?? replacement.departureAt, end: repaired?.endAt ?? replacement.arrivalAt, originalStart: original.start, originalEnd: original.end, impactState: candidate.impactStates[item.id], recoveryChange: candidate.recoveryChanges[item.id] };
+    return { ...original, ...(repaired ? { start: repaired.startAt, end: repaired.endAt } : {}), ...(repaired && (repaired.startAt !== original.start || repaired.endAt !== original.end) ? { originalStart: original.start, originalEnd: original.end } : {}), impactState: candidate.impactStates[item.id], recoveryChange: candidate.recoveryChanges[item.id] };
+  });
 }
+const presentChecks = (candidate: ValidatedRecoveryCandidate): ConnectionCheck[] => candidate.connectionChecks.map((check) => ({ predecessorBookingId: check.predecessorItemId, successorBookingId: check.successorItemId, predecessorArrivalAt: check.predecessorArrivalAt, replacementDepartureAt: check.successorDepartureAt, actualBufferMinutes: check.actualBufferMinutes, minimumBufferMinutes: check.minimumBufferMinutes, passed: check.passed }));
 export function presentCandidate(trip: Trip, candidate: ValidatedRecoveryCandidate): RecoveryCandidate {
   const itinerary = candidateItinerary(trip, candidate);
-  return { id: candidate.id, label: candidate.alternatives.map((alternative) => `Replace ${alternative.replacementForBookingId}`).join(", "), itinerary, changes: Object.values(candidate.recoveryChanges).filter((change) => change !== "UNCHANGED").length, extraCost: candidate.extraCost, violations: candidate.violations.map((violation) => ({ kind: violation.kind === "ARRIVAL_DEADLINE" ? "deadline" : violation.kind === "MAX_EXTRA_BUDGET" ? "budget" : violation.kind === "NO_OVERNIGHT" ? "overnight" : "connection", bookingId: violation.itemId, message: violation.message })), feasible: candidate.feasible, affectedBookingIds: Object.entries(candidate.impactStates).filter(([, state]) => state === "AFFECTED").map(([id]) => id), explanation: "", arrival: candidate.finalArrivalAt };
+  return { id: candidate.id, label: candidate.alternatives.map((alternative) => `Replace ${alternative.replacementForBookingId}`).join(", "), itinerary, changes: Object.values(candidate.recoveryChanges).filter((change) => change !== "UNCHANGED").length, extraCost: candidate.extraCost, violations: candidate.violations.map((violation) => ({ kind: violation.kind === "ARRIVAL_DEADLINE" ? "deadline" : violation.kind === "MAX_EXTRA_BUDGET" ? "budget" : violation.kind === "NO_OVERNIGHT" ? "overnight" : "connection", bookingId: violation.itemId, message: violation.message })), feasible: candidate.feasible, affectedBookingIds: Object.entries(candidate.impactStates).filter(([, state]) => state === "AFFECTED").map(([id]) => id), actions: [], connectionChecks: presentChecks(candidate), explanation: "", arrival: candidate.finalArrivalAt };
 }
+const presentActions = (actions: readonly { id: string; kind: TravellerAction["kind"]; itemId: string; description: string; automated: boolean }[]): TravellerAction[] => actions.map((action) => ({ ...action }));
+
 export function presentRun(trip: Trip, run: RecoveryRunResult): { result: RecoveryResult; selectedId?: string; candidates: RecoveryCandidate[] } {
   const candidates = run.candidates.map((candidate) => presentCandidate(trip, candidate)); const violations = candidates.flatMap((candidate) => candidate.violations);
-  if (run.status === "NO_FEASIBLE_RECOVERY") return { candidates, result: { feasible: false, itinerary: [], changes: 0, extraCost: 0, violations, explanation: "No feasible repair exists within the available candidate set.", affectedBookingIds: run.impact.affectedItemIds } };
+  if (run.status === "NO_FEASIBLE_RECOVERY") return { candidates, result: { feasible: false, itinerary: [], changes: 0, extraCost: 0, violations, explanation: "No feasible repair exists within the available candidate set.", affectedBookingIds: run.impact.affectedItemIds, actions: [] } };
   const selected = candidates.find((candidate) => candidate.id === run.recommendation.selectedCandidateId)!;
-  return { candidates, selectedId: selected.id, result: { feasible: true, itinerary: selected.itinerary, changes: selected.changes, extraCost: selected.extraCost, violations: [], explanation: `${run.recommendation.reason} Decision source: ${run.recommendation.decisionSource}.`, affectedBookingIds: run.impact.affectedItemIds } };
+  return { candidates, selectedId: selected.id, result: { feasible: true, itinerary: selected.itinerary, changes: selected.changes, extraCost: selected.extraCost, violations: [], actions: presentActions(run.actions), connectionChecks: selected.connectionChecks, explanation: run.recommendation.reason, decisionSource: run.recommendation.decisionSource, tradeoffs: run.recommendation.tradeoffs, affectedBookingIds: run.impact.affectedItemIds } };
 }

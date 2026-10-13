@@ -16,11 +16,24 @@ test("root trip endpoint returns the canonical versioned trip", async () => {
 test("root recovery endpoint runs the real canonical pipeline", async () => {
   const response = await recoveryRunOutcome(request());
   assert.equal(response.status, 200);
-  const body = response.body as { status: string; candidates: { id: string; feasible: boolean; violations: { kind: string }[] }[]; recommendation: { decisionSource: string } };
+  const body = response.body as { status: string; candidates: { id: string; feasible: boolean; violations: { kind: string }[] }[]; recommendation: { decisionSource: string }; actions: { kind: string; itemId: string; description: string; automated: boolean }[] };
   assert.equal(body.status, "RECOVERED");
   assert.deepEqual(body.candidates.filter((candidate) => candidate.feasible).map((candidate) => candidate.id), ["RC-A", "RC-B"]);
   assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-D")?.violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT"]);
   assert.equal(body.recommendation.decisionSource, "DETERMINISTIC_FALLBACK");
+  assert.deepEqual(body.actions, [{ id: "ACT-1", kind: "BOOK_REPLACEMENT", itemId: "RAIL-B", description: "Book simulated replacement RC-B-ALT.", automated: false }]);
+});
+
+test("golden delay exposes validator-derived disrupted timing and connection facts", async () => {
+  const response = await recoveryRunOutcome(request());
+  const body = response.body as unknown as { candidates: { id: string; repairedTimings: Record<string, { endAt: string } | null>; connectionChecks: { predecessorArrivalAt: string; successorDepartureAt: string; actualBufferMinutes: number; minimumBufferMinutes: number; passed: boolean }[]; recoveryChanges: Record<string, string>; impactStates: Record<string, string> }[] };
+  const rcA = body.candidates.find((candidate) => candidate.id === "RC-A")!;
+  const rcB = body.candidates.find((candidate) => candidate.id === "RC-B")!;
+  assert.equal(rcA.repairedTimings["RAIL-A"]?.endAt, "2026-11-10T15:00:00");
+  assert.deepEqual(rcA.connectionChecks[0] && { predecessorArrivalAt: rcA.connectionChecks[0].predecessorArrivalAt, replacementDepartureAt: rcA.connectionChecks[0].successorDepartureAt, actualBufferMinutes: rcA.connectionChecks[0].actualBufferMinutes, minimumBufferMinutes: rcA.connectionChecks[0].minimumBufferMinutes, passed: rcA.connectionChecks[0].passed }, { predecessorArrivalAt: "2026-11-10T15:00:00", replacementDepartureAt: "2026-11-10T15:30:00", actualBufferMinutes: 30, minimumBufferMinutes: 30, passed: true });
+  assert.deepEqual(rcB.connectionChecks[0] && { predecessorArrivalAt: rcB.connectionChecks[0].predecessorArrivalAt, replacementDepartureAt: rcB.connectionChecks[0].successorDepartureAt, actualBufferMinutes: rcB.connectionChecks[0].actualBufferMinutes, minimumBufferMinutes: rcB.connectionChecks[0].minimumBufferMinutes, passed: rcB.connectionChecks[0].passed }, { predecessorArrivalAt: "2026-11-10T15:00:00", replacementDepartureAt: "2026-11-10T16:00:00", actualBufferMinutes: 60, minimumBufferMinutes: 30, passed: true });
+  assert.equal(rcA.impactStates["RAIL-A"], "DISRUPTED");
+  assert.equal(rcA.recoveryChanges["RAIL-A"], "UNCHANGED");
 });
 
 test("root recovery endpoint maps invalid, stale, and missing requests", async () => {

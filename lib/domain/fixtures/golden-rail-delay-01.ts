@@ -131,6 +131,15 @@ export const goldenAlternatives: Alternative[] = [
   },
 ];
 
+const candidateFacts = (alternative: Alternative) => ({
+  repairedTimings: {
+    "RAIL-A": { startAt: `${DAY}T09:00:00`, endAt: `${DAY}T15:00:00` },
+    "RAIL-B": { startAt: alternative.departureAt, endAt: alternative.arrivalAt },
+    "HOTEL-1": { startAt: `${DAY}T17:00:00`, endAt: `${NEXT_DAY}T10:00:00` },
+  },
+  connectionChecks: [{ dependencyId: "RAIL-A->RAIL-B", predecessorItemId: "RAIL-A", successorItemId: "RAIL-B", predecessorArrivalAt: `${DAY}T15:00:00`, successorDepartureAt: alternative.departureAt, actualBufferMinutes: (Date.parse(`${alternative.departureAt}Z`) - Date.parse(`${DAY}T15:00:00Z`)) / 60000, minimumBufferMinutes: 30, passed: Date.parse(`${alternative.departureAt}Z`) >= Date.parse(`${DAY}T15:30:00Z`) }],
+});
+
 export const goldenCandidates: ValidatedRecoveryCandidate[] = [
   {
     id: "RC-A",
@@ -149,6 +158,7 @@ export const goldenCandidates: ValidatedRecoveryCandidate[] = [
     violations: [],
     extraCost: 450,
     finalArrivalAt: `${DAY}T17:45:00`,
+    ...candidateFacts(goldenAlternatives[0]),
   },
   {
     id: "RC-B",
@@ -167,6 +177,7 @@ export const goldenCandidates: ValidatedRecoveryCandidate[] = [
     violations: [],
     extraCost: 350,
     finalArrivalAt: `${DAY}T18:30:00`,
+    ...candidateFacts(goldenAlternatives[1]),
   },
   {
     id: "RC-C",
@@ -191,6 +202,7 @@ export const goldenCandidates: ValidatedRecoveryCandidate[] = [
     ],
     extraCost: 250,
     finalArrivalAt: `${DAY}T19:30:00`,
+    ...candidateFacts(goldenAlternatives[2]),
   },
   {
     id: "RC-D",
@@ -220,6 +232,7 @@ export const goldenCandidates: ValidatedRecoveryCandidate[] = [
     ],
     extraCost: 150,
     finalArrivalAt: `${DAY}T23:30:00`,
+    ...candidateFacts(goldenAlternatives[3]),
   },
   {
     id: "RC-E",
@@ -244,6 +257,7 @@ export const goldenCandidates: ValidatedRecoveryCandidate[] = [
     ],
     extraCost: 700,
     finalArrivalAt: `${DAY}T17:45:00`,
+    ...candidateFacts(goldenAlternatives[4]),
   },
 ];
 

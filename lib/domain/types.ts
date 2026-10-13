@@ -171,9 +171,23 @@ export interface GeneratedRecoveryCandidate {
 export interface ValidatedRecoveryCandidate extends GeneratedRecoveryCandidate {
   feasible: boolean;
   violations: ConstraintViolation[];
+  /** Canonical repaired timing used for feasibility validation. */
+  repairedTimings: Record<string, ItemTiming | null>;
+  /** Canonical connection facts, calculated against the repaired itinerary. */
+  connectionChecks: ConnectionCheck[];
 }
 
 export interface ConstraintEvaluation extends ConstraintViolation { passed: boolean }
+export interface ConnectionCheck {
+  dependencyId: string;
+  predecessorItemId: string;
+  successorItemId: string;
+  predecessorArrivalAt: string | null;
+  successorDepartureAt: string | null;
+  actualBufferMinutes: number | null;
+  minimumBufferMinutes: number;
+  passed: boolean;
+}
 export interface RepairedItem {
   itemId: string; kind: ItineraryItemKind; label: string;
   impactState: ImpactState; recoveryChange: RecoveryChange;

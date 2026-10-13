@@ -30,6 +30,7 @@ export const violationLabel: Record<ViolationKind, string> = {
 export function diffOf(b: Booking, original: Booking[], affectedIds: string[]): Diff {
   const o = original.find(x => x.id === b.id);
   if (!o) return "NEW";
+  if (b.impactState === "DISRUPTED") return "DISRUPTED";
   if (o.start !== b.start || o.end !== b.end) return "CHANGED";
   return affectedIds.includes(b.id) ? "AFFECTED" : "UNCHANGED";
 }
