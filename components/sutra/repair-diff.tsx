@@ -38,13 +38,14 @@ export function RepairTimeline() {
 }
 
 const range = (b: Booking) => (b.kind === "hotel" ? `check-in ${hm(b.start)}` : `${hm(b.start)}–${hm(b.end)}`);
-const route = (b: Booking) => (b.kind === "hotel" ? `Hotel · ${placeName(b.dest)}` : `${placeName(b.origin)} → ${placeName(b.dest)}`);
+const route = (b: Booking) => b.kind === "hotel" ? `Accommodation · ${placeName(b.dest)}` : b.kind === "activity" ? `Activity · ${placeName(b.dest)}` : `${placeName(b.origin)} → ${placeName(b.dest)}`;
 
 /** Explicit before/after accounting: unchanged, changed, new, affected, and what was replaced. */
 export function WhatChanged({ original, repaired, diffs }: { original: Booking[]; repaired: Booking[]; diffs: Record<string, Diff> }) {
   const removed = original.filter(o => !repaired.some(r => r.id === o.id));
   const legend: { d: Diff; text: string }[] = [
-    { d: "UNCHANGED", text: "kept as booked" }, { d: "CHANGED", text: "times differ" },
+    { d: "UNCHANGED", text: "kept as booked" }, { d: "CHANGED", text: "changed by recovery" },
+    { d: "DISRUPTED", text: "timing disrupted; recovery did not replace it" },
     { d: "NEW", text: "added by the recovery" }, { d: "AFFECTED", text: "touched by the disruption" },
   ];
   return (
@@ -67,7 +68,7 @@ export function WhatChanged({ original, repaired, diffs }: { original: Booking[]
               <DiffBadge d={diffs[b.id]} />
               <span className="font-mono text-[13px] text-muted">{b.id}</span>
               <span className="text-[15px] text-ink">{route(b)} · {range(b)}</span>
-              {diffs[b.id] === "CHANGED" && o && <span className="text-[13px] text-muted">was {range(o)}</span>}
+              {(diffs[b.id] === "CHANGED" || diffs[b.id] === "DISRUPTED") && o && <span className="text-[13px] text-muted">was {range(o)}</span>}
             </li>
           );
         })}

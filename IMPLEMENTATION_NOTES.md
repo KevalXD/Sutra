@@ -1,5 +1,37 @@
 # Sutra frontend rebuild — implementation notes
 
+## Rail-first presentation bridge (October 2026)
+
+- Added `lib/rail-presentation.ts`, a typed, frontend-only adapter that projects normalized trip transport, accommodation, activity, and constraint facts into the existing presentation model. It does not create disruption, candidate, or recovery data.
+- `hooks/use-recovery-flow.ts` renders every trip, disruption, candidate set, recovery status, selected candidate, and traveller action returned by the canonical API. It uses only `GET /api/v1/trips/:tripId` and `POST /api/v1/recovery-runs`.
+- Updated the journey, disruption, and constraint copy to rail-first language. The rail fixture now shows RAIL-A (Mangaluru Central → Hassan Junction), RAIL-B (Hassan Junction → Mysuru Junction), HOTEL-1 accommodation, ₹500 maximum extra budget, 19:00 latest arrival, no overnight travel, and earlier-arrival preference.
+- Cancellation, no-feasible, and technical-error surfaces remain distinct. Retry continues to invoke the API action.
+- Added an explicit webpack alias alongside the TypeScript alias in `next.config.mjs`. This fixes production bundling resolution for the existing `@/…` imports.
+
+### Verification — October 2026
+
+- `npm run typecheck`: passed.
+- `npm run lint`: passed.
+- `npm run build`: source compilation reached `next/font` but could not complete because this sandbox cannot resolve `fonts.googleapis.com` for Instrument Sans, Inter, and IBM Plex Mono. No application compilation error remained.
+
+### Remaining integration dependency
+
+Nithesh must provide the authoritative normalized rail `Trip`, impact, candidate, recovery-status, and recommendation response envelope. Until then, the UI truthfully renders the existing legacy API output rather than claiming the golden rail fixture was executed. Mayank must provide deterministic normalized cancellation and no-feasible fixture outcomes before those rail scenarios can be demonstrated end-to-end.
+
+### Scenario integration correction — October 2026
+
+- Removed the ignored-response path: the flow now renders the payload returned from each API call instead of replacing it with scenario-dependent rail fixture data.
+- A recovered response is rejected as a technical error if its selected candidate is missing or not feasible in the returned alternatives. Infeasibility is now derived only from the returned `result.feasible` value.
+- The trip-only rail adapter no longer fabricates impact, candidates, recommendation, or recovery results. Existing UI labels now identify the returned transport kind instead of calling a legacy flight response a rail booking.
+- `npm run typecheck` and `npm run lint` passed. `npm run build` again stopped only at `getaddrinfo ENOTFOUND fonts.googleapis.com` while `next/font` fetched IBM Plex Mono, Instrument Sans, and Inter; the production-dependent QA scripts could not run without that build.
+
+### Presentation correction pass — October 2026
+
+- Unknown itinerary fares are now represented as absent rather than `₹0`; an alternative's `extraCost` is shown only as its additional recovery cost and is no longer copied into a booking as a total fare.
+- Activities have a distinct presentation type and visual treatment; they are no longer coerced into accommodation or included in rail-route and connection calculations.
+- Removed the unsupported fixed selection-order claim from the result screen. The fixture-based delay view identifies the selected earlier-arriving option without attributing the recommendation to AI.
+- Re-ran `npm run typecheck` and `npm run lint`: passed. `npm run build` again stopped at the sandbox DNS failure (`getaddrinfo ENOTFOUND fonts.googleapis.com`) while fetching IBM Plex Mono, Instrument Sans, and Inter through `next/font`.
+
 ## Component classification (per 02_UI_DESIGN_SPEC §13 and 05_TECHNICAL_RULES §13)
 
 `core-sutra-ui.md` supplied **install/usage info only** for almost every component (the demos import files that are not in the document, and the shadcn registries are not reachable from the build sandbox). Only Skiper 17 and Skiper 19 include source, and both are marketing demo pages. Nothing below claims original library source was integrated.
@@ -28,7 +60,7 @@ GSAP and Lenis were **not** added (05 §8: only when justified). No new runtime 
 - Impact chain: Disrupted booking → Immediate effect → Downstream booking → Constraint impact, revealed sequentially.
 - Result hierarchy: status → repaired path → repaired itinerary → constraint status → explanation → alternatives.
 - `NO_FEASIBLE_RECOVERY` (amber, violated constraints grouped by kind with booking ids, human next step, no success styling) and `TECHNICAL_ERROR` (red, Retry) are visually distinct.
-- Preserved: `/api/*` route handlers, `lib/engine.ts`, `lib/mock.ts`, `lib/api.ts`, `hooks/use-recovery-flow.ts` (improved).
+- Retired: the legacy `/api/trip`, `/api/disruption`, `/api/alternatives`, and `/api/recovery` handlers, together with their obsolete flight mock engine and fixtures. `lib/api.ts` and `hooks/use-recovery-flow.ts` now use the canonical rail recovery API only.
 - Fixed from the previous handoff: `day()` timezone bug (no more `Date` round-trip), StrictMode error-scenario race (retry counter is state-driven), "Start over" link/scenario drop, hardcoded constraint list (now derived from `result.violations`), `.font-mono` precedence.
 
 ## Polish pass (second iteration)
@@ -53,7 +85,7 @@ GSAP and Lenis were **not** added (05 §8: only when justified). No new runtime 
 - No screen-reader (NVDA/VoiceOver) session; axe + keyboard + structure checks only. No Firefox/Safari run (Chromium only). No touch-device test.
 - The headless runs cannot judge animation *feel*; motion was verified functionally (it runs, it respects reduced motion), not aesthetically in real time.
 - Sutra-native components approximate the named patterns; they are not library originals (see classification table).
-- Backend-dependent: request bodies are still `{ scenario }` and `/api/recovery` returns `{ result, selectedId }` (envelope backend-owned/TBD); candidates' `affectedBookingIds` and violation texts are hand-authored mock data; the simulator decides feasibility. `ApiError.code` is a required union here while the contract allows `code?: string; status?: number`.
+- The frontend sends the canonical trip/version/disruption request body to `/api/v1/recovery-runs` and projects its authoritative response for presentation. The deterministic rail simulator remains the source for the configured demo scenarios.
 - Search stages 2–4 are fixed-duration presentation steps (stages 0–1 follow real calls).
 - Hotel shows "Affected" in the repaired itinerary because its booking was affected (times unchanged).
 - Extra scenarios `infeasible` and `error` go beyond the two scenarios named in the spec. Scenario E from the data contract ("no downstream impact") is not built.

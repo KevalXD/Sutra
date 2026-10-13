@@ -1,7 +1,7 @@
 import type {
   Alternative,
   Disruption,
-  RecoveryCandidate,
+  ValidatedRecoveryCandidate,
   Trip,
 } from "../types";
 
@@ -92,6 +92,7 @@ export const goldenAlternatives: Alternative[] = [
   {
     id: "RC-A-ALT",
     replacementForBookingId: "RAIL-B",
+    departureAt: `${DAY}T15:30:00`,
     arrivalAt: `${DAY}T17:45:00`,
     extraCost: 450,
     source: "SIMULATED_OFFER",
@@ -99,6 +100,7 @@ export const goldenAlternatives: Alternative[] = [
   {
     id: "RC-B-ALT",
     replacementForBookingId: "RAIL-B",
+    departureAt: `${DAY}T16:00:00`,
     arrivalAt: `${DAY}T18:30:00`,
     extraCost: 350,
     source: "SIMULATED_OFFER",
@@ -106,6 +108,7 @@ export const goldenAlternatives: Alternative[] = [
   {
     id: "RC-C-ALT",
     replacementForBookingId: "RAIL-B",
+    departureAt: `${DAY}T17:00:00`,
     arrivalAt: `${DAY}T19:30:00`,
     extraCost: 250,
     source: "SIMULATED_OFFER",
@@ -113,6 +116,7 @@ export const goldenAlternatives: Alternative[] = [
   {
     id: "RC-D-ALT",
     replacementForBookingId: "RAIL-B",
+    departureAt: `${DAY}T21:00:00`,
     arrivalAt: `${DAY}T23:30:00`,
     extraCost: 150,
     source: "SIMULATED_OFFER",
@@ -120,13 +124,23 @@ export const goldenAlternatives: Alternative[] = [
   {
     id: "RC-E-ALT",
     replacementForBookingId: "RAIL-B",
+    departureAt: `${DAY}T15:30:00`,
     arrivalAt: `${DAY}T17:45:00`,
     extraCost: 700,
     source: "SIMULATED_OFFER",
   },
 ];
 
-export const goldenCandidates: RecoveryCandidate[] = [
+const candidateFacts = (alternative: Alternative) => ({
+  repairedTimings: {
+    "RAIL-A": { startAt: `${DAY}T09:00:00`, endAt: `${DAY}T15:00:00` },
+    "RAIL-B": { startAt: alternative.departureAt, endAt: alternative.arrivalAt },
+    "HOTEL-1": { startAt: `${DAY}T17:00:00`, endAt: `${NEXT_DAY}T10:00:00` },
+  },
+  connectionChecks: [{ dependencyId: "RAIL-A->RAIL-B", predecessorItemId: "RAIL-A", successorItemId: "RAIL-B", predecessorArrivalAt: `${DAY}T15:00:00`, successorDepartureAt: alternative.departureAt, actualBufferMinutes: (Date.parse(`${alternative.departureAt}Z`) - Date.parse(`${DAY}T15:00:00Z`)) / 60000, minimumBufferMinutes: 30, passed: Date.parse(`${alternative.departureAt}Z`) >= Date.parse(`${DAY}T15:30:00Z`) }],
+});
+
+export const goldenCandidates: ValidatedRecoveryCandidate[] = [
   {
     id: "RC-A",
     alternatives: [goldenAlternatives[0]],
@@ -144,6 +158,7 @@ export const goldenCandidates: RecoveryCandidate[] = [
     violations: [],
     extraCost: 450,
     finalArrivalAt: `${DAY}T17:45:00`,
+    ...candidateFacts(goldenAlternatives[0]),
   },
   {
     id: "RC-B",
@@ -162,6 +177,7 @@ export const goldenCandidates: RecoveryCandidate[] = [
     violations: [],
     extraCost: 350,
     finalArrivalAt: `${DAY}T18:30:00`,
+    ...candidateFacts(goldenAlternatives[1]),
   },
   {
     id: "RC-C",
@@ -179,13 +195,14 @@ export const goldenCandidates: RecoveryCandidate[] = [
     feasible: false,
     violations: [
       {
-        kind: "LATEST_ARRIVAL",
+        kind: "ARRIVAL_DEADLINE",
         itemId: "RAIL-B",
         message: "Final arrival at 19:30 exceeds the 19:00 latest-arrival constraint.",
       },
     ],
     extraCost: 250,
     finalArrivalAt: `${DAY}T19:30:00`,
+    ...candidateFacts(goldenAlternatives[2]),
   },
   {
     id: "RC-D",
@@ -203,7 +220,7 @@ export const goldenCandidates: RecoveryCandidate[] = [
     feasible: false,
     violations: [
       {
-        kind: "LATEST_ARRIVAL",
+        kind: "ARRIVAL_DEADLINE",
         itemId: "RAIL-B",
         message: "Final arrival at 23:30 exceeds the 19:00 latest-arrival constraint.",
       },
@@ -215,6 +232,7 @@ export const goldenCandidates: RecoveryCandidate[] = [
     ],
     extraCost: 150,
     finalArrivalAt: `${DAY}T23:30:00`,
+    ...candidateFacts(goldenAlternatives[3]),
   },
   {
     id: "RC-E",
@@ -239,6 +257,7 @@ export const goldenCandidates: RecoveryCandidate[] = [
     ],
     extraCost: 700,
     finalArrivalAt: `${DAY}T17:45:00`,
+    ...candidateFacts(goldenAlternatives[4]),
   },
 ];
 

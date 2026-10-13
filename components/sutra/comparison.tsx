@@ -3,8 +3,7 @@ import { useState, type ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Check, X } from "lucide-react";
 import type { Diff, Itinerary, RecoveryCandidate } from "@/lib/types";
-import { day, diffOf, fmtDuration, formatMoney, hm, layovers } from "@/lib/format";
-import { placeName } from "@/lib/places";
+import { day, diffOf, fmtDuration, formatMoney, hm } from "@/lib/format";
 import { JourneyBand } from "./journey-band";
 import { MagicBento } from "./card-effects";
 
@@ -48,7 +47,7 @@ export function RecoveryComparison({ candidates, selectedId, trip, heading, intr
           const diffs = Object.fromEntries(c.itinerary.map(b => [b.id, diffOf(b, trip.bookings, c.affectedBookingIds)])) as Record<string, Diff>;
           const added = c.itinerary.filter(b => diffs[b.id] === "NEW");
           const removed = trip.bookings.filter(o => !c.itinerary.some(r => r.id === o.id));
-          const lay = layovers(c.itinerary);
+          const checks = c.connectionChecks ?? [];
           const isOpen = open === c.id;
           const status = sel ? "Selected recovery" : c.feasible ? "Feasible" : "Infeasible";
           return (
@@ -77,7 +76,7 @@ export function RecoveryComparison({ candidates, selectedId, trip, heading, intr
                 <Row label="Arrival"><span className="font-mono">{hm(c.arrival)}</span><span className="block font-mono text-[12px] text-muted">{day(c.arrival)}</span></Row>
                 <Row label="Connection" ok={viol("connection").length === 0}>
                   {viol("connection").length ? <span className="text-danger">{viol("connection")[0].message}</span>
-                    : <span className="font-mono text-[13px]">{lay.length ? lay.map(l => `${placeName(l.city)} ${fmtDuration(l.minutes)}`).join(" · ") : "No connection"}</span>}
+                    : <span className="font-mono text-[13px]">{checks.length ? checks.map(check => check.actualBufferMinutes === null ? "Connection timing unavailable" : `${fmtDuration(check.actualBufferMinutes)} buffer · min ${fmtDuration(check.minimumBufferMinutes)}`).join(" · ") : "No connection"}</span>}
                 </Row>
                 <Row label="Budget" ok={viol("budget").length === 0}>
                   {viol("budget").length ? <span className="text-danger">{viol("budget")[0].message}</span>

@@ -1,7 +1,7 @@
 "use client";
 import { Fragment } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { BedDouble, Plane, TrainFront, TriangleAlert, Ban } from "lucide-react";
+import { BedDouble, CalendarDays, Plane, TrainFront, TriangleAlert, Ban } from "lucide-react";
 import type { Booking, Diff, Disruption } from "@/lib/types";
 import { day, fmtDuration, formatMoney, hm, shiftIso } from "@/lib/format";
 import { placeName } from "@/lib/places";
@@ -11,8 +11,9 @@ const DIFF_STYLE: Record<Diff, string> = {
   CHANGED: "border-blue text-blue-bright",
   NEW: "border-green text-green-bright",
   AFFECTED: "border-warn text-warn",
+  DISRUPTED: "border-warn text-warn",
 };
-export const DIFF_LABEL: Record<Diff, string> = { UNCHANGED: "Unchanged", CHANGED: "Changed", NEW: "New", AFFECTED: "Affected" };
+export const DIFF_LABEL: Record<Diff, string> = { UNCHANGED: "Unchanged", CHANGED: "Changed", NEW: "New", AFFECTED: "Affected", DISRUPTED: "Disrupted" };
 export const DiffBadge = ({ d }: { d: Diff }) => (
   <span className={`rounded-full border px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wide ${DIFF_STYLE[d]}`}>{DIFF_LABEL[d]}</span>
 );
@@ -34,8 +35,9 @@ type Props = {
 export function JourneyBand({ bookings, currency, diffs, disruption, highlightId, idPrefix, reveal }: Props) {
   const reduce = useReducedMotion();
   const animate = !!reveal && !reduce;
-  const legs = bookings.filter(b => b.kind !== "hotel");
+  const legs = bookings.filter(b => b.kind === "train" || b.kind === "flight");
   const stays = bookings.filter(b => b.kind === "hotel");
+  const activities = bookings.filter(b => b.kind === "activity");
   const cities = legs.length ? [legs[0].origin, ...legs.map(l => l.dest)] : [];
   const domId = (id: string) => (idPrefix ? `${idPrefix}-booking-${id}` : undefined);
 
@@ -70,13 +72,21 @@ export function JourneyBand({ bookings, currency, diffs, disruption, highlightId
             initial={animate ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }} transition={{ delay: animate ? (legs.length + k) * 0.35 + 0.2 : 0 }}
             className={`sutra-card flex flex-wrap items-center gap-x-4 gap-y-1 rounded-[14px] border bg-surface px-4 py-3 transition-shadow ${hl ? "border-warn ring-2 ring-warn/70 shadow-l2" : d === "AFFECTED" ? "border-warn/60" : "border-line"}`}>
             <BedDouble aria-hidden className="size-5 text-blue-bright" />
-            <span className="font-display text-lg">Hotel · {placeName(h.dest)}</span>
+            <span className="font-display text-lg">Accommodation · {placeName(h.dest)}</span>
             <span className="font-mono text-[13px] text-ink2">{day(h.start)} {hm(h.start)} → {day(h.end)} {hm(h.end)}</span>
-            <span className="font-mono text-[13px] text-muted">{formatMoney(h.cost, currency)}</span>
+            {h.cost !== undefined && <span className="font-mono text-[13px] text-muted">{formatMoney(h.cost, currency)}</span>}
             {d && <span className="ml-auto"><DiffBadge d={d} /></span>}
           </motion.div>
         );
       })}
+      {activities.map((activity) => (
+        <div key={activity.id} id={domId(activity.id)} className="sutra-card flex flex-wrap items-center gap-x-4 gap-y-1 rounded-[14px] border border-line bg-surface px-4 py-3">
+          <CalendarDays aria-hidden className="size-5 text-green-bright" />
+          <span className="font-display text-lg">Activity · {placeName(activity.dest)}</span>
+          <span className="font-mono text-[13px] text-ink2">{day(activity.start)} {hm(activity.start)} → {day(activity.end)} {hm(activity.end)}</span>
+          {diffs?.[activity.id] && <span className="ml-auto"><DiffBadge d={diffs[activity.id]} /></span>}
+        </div>
+      ))}
     </div>
   );
 }
@@ -87,8 +97,11 @@ function Leg({ leg, index, diff, disruption, currency, animate, domId, highlight
   const hit = disruption?.bookingId === leg.id ? disruption : undefined;
   const cancelled = hit?.kind === "cancel";
   const delayed = hit?.kind === "delay" && hit.delayMin ? hit.delayMin : 0;
+  const disrupted = leg.impactState === "DISRUPTED";
+  const hasAuthoritativeTimingChange = leg.originalStart !== undefined || leg.originalEnd !== undefined;
   const Icon = leg.kind === "train" ? TrainFront : Plane;
-  const tone = hit ? "danger" : diff === "NEW" ? "green" : diff === "CHANGED" ? "blue" : diff === "AFFECTED" ? "warn" : "line-strong";
+  const bookingLabel = leg.kind === "train" ? "Rail booking" : "Flight booking";
+  const tone = hit ? "danger" : disrupted ? "warn" : diff === "NEW" ? "green" : diff === "CHANGED" ? "blue" : diff === "AFFECTED" ? "warn" : "line-strong";
   const lineColor = { danger: "border-danger", green: "border-green", blue: "border-blue", warn: "border-warn", "line-strong": "border-line-strong" }[tone];
   const newStart = delayed ? shiftIso(leg.start, delayed) : leg.start;
   const newEnd = delayed ? shiftIso(leg.end, delayed) : leg.end;
@@ -111,9 +124,9 @@ function Leg({ leg, index, diff, disruption, currency, animate, domId, highlight
       <motion.div animate={pulse} transition={{ delay: delay + 0.5, duration: 1.2 }}
         className={`sutra-card rounded-[14px] border bg-surface p-4 transition-shadow lg:mx-2 lg:mt-2 ${highlighted ? "border-warn ring-2 ring-warn/70 shadow-l2" : hit ? "border-danger/60 shadow-l1" : diff === "NEW" ? "border-green/60" : "border-line"}`}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[12px] text-muted">{leg.id}</span>
+          <span className="font-mono text-[12px] text-muted">{bookingLabel} · {leg.id}</span>
           <span className="text-[14px] text-ink2">{leg.origin} → {leg.dest}</span>
-          {diff && !hit && <span className="ml-auto"><DiffBadge d={diff} /></span>}
+          {hit ? null : disrupted ? <span className="ml-auto rounded-full border border-warn px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wide text-warn">Disrupted</span> : diff && <span className="ml-auto"><DiffBadge d={diff} /></span>}
         </div>
         <div className={`mt-2 font-display text-xl ${cancelled ? "text-muted line-through" : "text-ink"}`}>
           {delayed ? (
@@ -121,15 +134,26 @@ function Leg({ leg, index, diff, disruption, currency, animate, domId, highlight
               <span className="mr-2 text-[15px] text-muted line-through">{hm(leg.start)} → {hm(leg.end)}</span>
               <span className="text-warn">{hm(newStart)} → {hm(newEnd)}</span>
             </>
+          ) : hasAuthoritativeTimingChange ? (
+            <>
+              <span className="mr-2 text-[15px] text-muted line-through">{hm(leg.originalStart ?? leg.start)} → {hm(leg.originalEnd ?? leg.end)}</span>
+              <span className={disrupted ? "text-warn" : "text-ink"}>{hm(leg.start)} → {hm(leg.end)}</span>
+            </>
           ) : <>{hm(leg.start)} → {hm(leg.end)}</>}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 font-mono text-[12px] text-muted">
-          <span>{day(newStart)}</span><span>{formatMoney(leg.cost, currency)}</span>
+          <span>{day(newStart)}</span>{leg.cost !== undefined && <span>{formatMoney(leg.cost, currency)}</span>}
         </div>
         {hit && (
           <p className={`mt-3 flex items-center gap-2 text-[14px] font-medium ${cancelled ? "text-danger" : "text-warn"}`}>
             {cancelled ? <Ban aria-hidden className="size-4" /> : <TriangleAlert aria-hidden className="size-4" />}
             {cancelled ? "Cancelled — this leg will not operate" : `Delayed by ${fmtDuration(delayed)}`}
+          </p>
+        )}
+        {!hit && disrupted && (
+          <p className="mt-3 flex items-center gap-2 text-[14px] font-medium text-warn">
+            <TriangleAlert aria-hidden className="size-4" />
+            Disrupted timing — this booking is unchanged by the recovery.
           </p>
         )}
       </motion.div>
