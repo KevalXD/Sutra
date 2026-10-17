@@ -7,7 +7,7 @@ const instrument = Instrument_Sans({ subsets: ["latin"], weight: ["400", "500", 
 const plex = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-plex" });
 
 export const metadata: Metadata = {
-  title: "Sutra — AI Agent for Travel Disruption Recovery",
+  title: "Sutra - AI Agent for Travel Disruption Recovery",
   description: "When travel breaks, Sutra repairs the journey.",
 };
 

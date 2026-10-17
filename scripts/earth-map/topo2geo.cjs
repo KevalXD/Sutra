@@ -1,0 +1,11 @@
+const path = module.require("node:path");
+const base = process.argv[2];
+const out = process.argv[3];
+const fs = module.require("node:fs");
+const topo = module.require(path.join(base, "node_modules/topojson-client"));
+const land = JSON.parse(fs.readFileSync(path.join(base, "node_modules/world-atlas/land-50m.json")));
+const countries = JSON.parse(fs.readFileSync(path.join(base, "node_modules/world-atlas/countries-50m.json")));
+fs.writeFileSync(path.join(out, "land.geojson"), JSON.stringify(topo.feature(land, land.objects.land)));
+fs.writeFileSync(path.join(out, "borders.geojson"), JSON.stringify(topo.mesh(countries, countries.objects.countries, (a, b) => a !== b)));
+const f = topo.feature(land, land.objects.land);
+console.log("land features:", f.features ? f.features.length : f.type, "geometry:", (f.features?.[0]||f).geometry?.type);
