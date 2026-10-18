@@ -68,6 +68,8 @@ export interface TransportLeg {
   bookingId: string;
   origin: string;
   destination: string;
+  originLocationId?: string;
+  destinationLocationId?: string;
   departureAt: string;
   arrivalAt: string;
 }
@@ -75,6 +77,7 @@ export interface TransportLeg {
 export interface AccommodationBooking extends ItineraryItemBase {
   kind: "accommodation";
   location: string;
+  locationId?: string;
   checkInAt: string;
   checkOutAt: string;
 }
@@ -82,6 +85,7 @@ export interface AccommodationBooking extends ItineraryItemBase {
 export interface ActivityCommitment extends ItineraryItemBase {
   kind: "activity";
   location: string;
+  locationId?: string;
   startsAt: string;
   endsAt: string;
 }
@@ -110,6 +114,7 @@ export interface Dependency {
   toItemId: string;
   kind: DependencyKind;
   minimumBufferMinutes?: number;
+  arrivalWindow?: { earliestAt?: string; latestAt: string };
 }
 
 export interface Disruption {
@@ -184,7 +189,7 @@ export interface RecoveryCandidate {
 }
 
 export interface ConstraintViolation {
-  kind: ConstraintKind | "CONNECTION";
+  kind: ConstraintKind | DependencyKind;
   itemId: string;
   message: string;
 }
@@ -204,6 +209,7 @@ export interface CandidateDecisionAudit {
   finalArrivalAt: string;
   extraCost: number;
   constraintChecks: ConstraintEvaluation[];
+  dependencyChecks: DependencyCheck[];
   violations: ConstraintViolation[];
 }
 
@@ -247,6 +253,7 @@ export interface ValidatedRecoveryCandidate extends GeneratedRecoveryCandidate {
   repairedTimings: Record<string, ItemTiming | null>;
   /** Canonical connection facts, calculated against the repaired itinerary. */
   connectionChecks: ConnectionCheck[];
+  dependencyChecks: DependencyCheck[];
 }
 
 export interface ConstraintEvaluation extends ConstraintViolation { passed: boolean }
@@ -260,6 +267,19 @@ export interface ConnectionCheck {
   minimumBufferMinutes: number;
   passed: boolean;
 }
+export interface DependencyCheckBase {
+  dependencyId: string;
+  kind: DependencyKind;
+  predecessorItemId: string;
+  successorItemId: string;
+  passed: boolean;
+  message: string;
+}
+export type DependencyCheck =
+  | (DependencyCheckBase & { kind: "CONNECTION"; predecessorCompletionAt: string | null; successorStartAt: string | null; actualBufferMinutes: number | null; minimumBufferMinutes: number })
+  | (DependencyCheckBase & { kind: "TEMPORAL"; predecessorCompletionAt: string | null; successorStartAt: string | null })
+  | (DependencyCheckBase & { kind: "LOCATION"; predecessorLocationId: string | null; successorLocationId: string | null })
+  | (DependencyCheckBase & { kind: "WINDOW"; predecessorCompletionAt: string | null; earliestAt: string | null; latestAt: string | null });
 export interface RepairedItem {
   itemId: string; kind: ItineraryItemKind; label: string;
   impactState: ImpactState; recoveryChange: RecoveryChange;

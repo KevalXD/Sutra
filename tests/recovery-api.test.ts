@@ -31,7 +31,7 @@ test("journey catalogue exposes only supported selectable journeys and profiles"
   assert.equal(JSON.stringify(body).includes("no-feasible-recovery-01"), false);
   const bengaluru = body.journeys[1];
   assert.equal(bengaluru.destination, "Bengaluru City");
-  assert.deepEqual(bengaluru.items.map((item) => item.id), ["RAIL-C", "RAIL-D"]);
+  assert.deepEqual(bengaluru.items.map((item) => item.id), ["RAIL-C", "RAIL-D", "ACTIVITY-1", "HOTEL-2"]);
   assert.deepEqual(bengaluru.supportedDisruptions.map((profile) => profile.id), ["mangaluru-bengaluru-delay-01"]);
 });
 
@@ -68,13 +68,25 @@ test("the Bengaluru fixture recomputes its connection and reaches both recovery 
   assert.equal((infeasible.body as { status: string }).status, "NO_FEASIBLE_RECOVERY");
 });
 
+test("Bengaluru recoveries preserve downstream commitments only when their verified window passes", async () => {
+  const base = { tripId: "trip-mangaluru-bengaluru-01", tripVersion: 1, disruption: { source: "SIMULATED" as const, scenarioId: "mangaluru-bengaluru-delay-01", bookingId: "RAIL-C", kind: "delay" as const } };
+  const response = await recoveryRunOutcome({ ...base, disruption: { ...base.disruption, delayMinutes: 30 } });
+  const body = response.body as { candidates: { id: string; feasible: boolean; dependencyChecks: { kind: string; passed: boolean; predecessorCompletionAt?: string }[] }[] };
+  const recovery = body.candidates.find((candidate) => candidate.id === "MB-B")!;
+  assert.equal(recovery.feasible, true);
+  assert.equal(recovery.dependencyChecks.find((check) => check.kind === "WINDOW")?.passed, true);
+  assert.equal(recovery.dependencyChecks.find((check) => check.kind === "TEMPORAL")?.passed, true);
+  const late = (await recoveryRunOutcome({ ...base, disruption: { ...base.disruption, delayMinutes: 150 } })).body as { candidates: { id: string; violations: { kind: string; itemId: string }[] }[] };
+  assert.ok(late.candidates.find((candidate) => candidate.id === "MB-C")?.violations.some((violation) => violation.kind === "WINDOW" && violation.itemId === "ACTIVITY-1"));
+});
+
 test("root recovery endpoint runs the real canonical pipeline", async () => {
   const response = await recoveryRunOutcome(request());
   assert.equal(response.status, 200);
   const body = response.body as { status: string; candidates: { id: string; feasible: boolean; violations: { kind: string }[] }[]; recommendation: { decisionSource: string }; actions: { kind: string; itemId: string; description: string; automated: boolean }[] };
   assert.equal(body.status, "RECOVERED");
   assert.deepEqual(body.candidates.filter((candidate) => candidate.feasible).map((candidate) => candidate.id), ["RC-A", "RC-B"]);
-  assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-D")?.violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT"]);
+  assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-D")?.violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT", "WINDOW"]);
   assert.equal(body.recommendation.decisionSource, "DETERMINISTIC_FALLBACK");
   assert.deepEqual(body.actions, [{ id: "ACT-1", kind: "BOOK_REPLACEMENT", itemId: "RAIL-B", description: "Book simulated replacement RC-B-ALT.", automated: false }]);
 });
@@ -99,7 +111,7 @@ test("constraint overrides are independently validated and select RC-C through d
   assert.deepEqual(body.candidates.filter((candidate) => candidate.feasible).map((candidate) => candidate.id), ["RC-C"]);
   assert.equal(body.recommendation?.selectedCandidateId, "RC-C");
   assert.equal(body.recommendation?.decisionSource, "DETERMINISTIC_FALLBACK");
-  assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-D")?.violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT"]);
+  assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-D")?.violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT", "WINDOW"]);
 });
 
 test("strict constraints return no recovery with backend-derived reasons and do not mutate the fixture", async () => {
@@ -193,7 +205,7 @@ test("the independent no-feasible fixture retains every failed candidate and nev
   assert.equal(body.recommendation, null);
   assert.equal(body.recoveryPlan, null);
   assert.deepEqual(body.candidates.map((candidate) => candidate.feasible), [false, false, false]);
-  assert.deepEqual(body.candidates[1].violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT"]);
+  assert.deepEqual(body.candidates[1].violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT", "WINDOW"]);
 });
 
 test("the controlled adapter outage is TECHNICAL_ERROR once and the retry reaches recovery", async () => {
