@@ -120,6 +120,49 @@ export interface Disruption {
   delayMinutes?: number;
 }
 
+/** A backend-supported disruption that can be selected from the journey catalogue. */
+export interface SupportedDisruptionProfile {
+  id: string;
+  label: string;
+  bookingId: string;
+  bookingLabel: string;
+  kind: DisruptionKind;
+  /** Present only when the profile accepts a caller-selected delay duration. */
+  delayRange?: { minimumMinutes: number; maximumMinutes: number; stepMinutes: number };
+}
+
+export interface JourneyCatalogueItem {
+  id: string;
+  kind: ItineraryItemKind;
+  label: string;
+  origin?: string;
+  destination?: string;
+  departureAt?: string;
+  arrivalAt?: string;
+  location?: string;
+  checkInAt?: string;
+  checkOutAt?: string;
+  startsAt?: string;
+  endsAt?: string;
+}
+
+export interface JourneyCatalogueEntry {
+  tripId: string;
+  tripVersion: number;
+  label: string;
+  origin: string;
+  destination: string;
+  journeyDate: string;
+  currency: string;
+  defaultConstraints: ConstraintSet;
+  items: JourneyCatalogueItem[];
+  supportedDisruptions: SupportedDisruptionProfile[];
+}
+
+export interface JourneyCatalogueResponse {
+  journeys: JourneyCatalogueEntry[];
+}
+
 export interface Alternative {
   id: string;
   replacementForBookingId: string;

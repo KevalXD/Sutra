@@ -1,4 +1,4 @@
-import { RecoveryInputError, TechnicalFailure, getTrip, parseRequest, runRecovery, type RecoveryDeps } from "./core";
+import { RecoveryInputError, TechnicalFailure, getJourneyCatalogue, getTrip, parseRequest, runRecovery, type RecoveryDeps } from "./core";
 
 export async function recoveryRunOutcome(body: unknown, deps?: RecoveryDeps) {
   try { return { status: 200, body: await runRecovery(parseRequest(body), deps) }; }
@@ -17,4 +17,8 @@ export async function recoveryRunOutcome(body: unknown, deps?: RecoveryDeps) {
 export async function tripOutcome(tripId: string) {
   const trip = await getTrip(tripId);
   return trip ? { status: 200, body: trip } : { status: 404, body: { error: { code: "TRIP_NOT_FOUND", message: `Trip ${tripId} was not found.` } } };
+}
+
+export async function tripsOutcome() {
+  return { status: 200, body: await getJourneyCatalogue() };
 }
