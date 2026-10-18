@@ -111,6 +111,7 @@ export interface DisruptionAnalysis {
 }
 export interface ApiError {
   code:
+    | "CATALOGUE_LOAD_FAILED"
     | "ITINERARY_LOAD_FAILED"
     | "INVALID_DISRUPTION"
     | "RECOVERY_SERVICE_UNAVAILABLE"
