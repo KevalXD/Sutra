@@ -117,9 +117,12 @@ function repairedTimings(trip: Trip, impact: ImpactAnalysis, candidate: Pick<Gen
     return [item.id, alternative ? { startAt: alternative.departureAt, endAt: alternative.arrivalAt } : impact.disruptedTimings[item.id] ?? timing(trip, item.id)];
   })) as Record<string, ItemTiming | null>;
 }
+function candidateIdFor(alternative: Alternative) {
+  return alternative.id.endsWith("-ALT") ? alternative.id.slice(0, -4) : `RC-${alternative.id}`;
+}
 function candidateFor(trip: Trip, disruption: Disruption, impact: ImpactAnalysis, alternative: Alternative): GeneratedRecoveryCandidate {
   if (!transport(trip, alternative.replacementForBookingId) || minutes(alternative.arrivalAt) <= minutes(alternative.departureAt) || !Number.isFinite(alternative.extraCost) || alternative.extraCost < 0) throw new TechnicalFailure("ADAPTER_CONTRACT_VIOLATION", `Malformed alternative ${alternative.id}.`);
-  const id = alternative.id.endsWith("-ALT") ? alternative.id.slice(0, -4) : `RC-${alternative.id}`;
+  const id = candidateIdFor(alternative);
   const recoveryChanges: Record<string, RecoveryChange> = Object.fromEntries(trip.items.map((item) => [item.id, item.id === alternative.replacementForBookingId ? "REPLACED" : item.id === disruption.bookingId && disruption.kind === "cancellation" ? "CANCELLED" : "UNCHANGED"] as const));
   const times = repairedTimings(trip, impact, { alternatives: [alternative] });
   const final = trip.items.filter((x) => x.kind === "transport").map((x) => ({ id: x.id, endAt: times[x.id]?.endAt })).filter((x): x is { id: string; endAt: string } => Boolean(x.endAt)).sort((a, b) => b.endAt.localeCompare(a.endAt))[0];
@@ -280,6 +283,12 @@ export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDep
     alternatives = deps.findAlternatives ? await deps.findAlternatives({ trip, disruption: request.disruption, impact }) : structuredClone(scenario.alternatives);
   }
   catch (error) { throw error instanceof TechnicalFailure ? error : new TechnicalFailure("TRANSPORT_ADAPTER_FAILED", error instanceof Error ? error.message : "Transport adapter failed."); }
+  const candidateIds = new Set<string>();
+  for (const alternative of alternatives) {
+    const candidateId = candidateIdFor(alternative);
+    if (candidateIds.has(candidateId)) throw new TechnicalFailure("ADAPTER_CONTRACT_VIOLATION", `Duplicate recovery candidate ID ${candidateId} returned by the alternatives adapter.`);
+    candidateIds.add(candidateId);
+  }
   const candidates = alternatives.map((x) => candidateFor(trip, request.disruption, impact, x)).map((x) => validate(trip, impact, x)); const runId = `run-${request.disruption.scenarioId}-v${trip.version}`; const base = { runId, tripVersion: trip.version, impact, candidates, effectiveConstraints: structuredClone(trip.constraints) };
   if (!candidates.some((x) => x.feasible)) return { ...base, status: "NO_FEASIBLE_RECOVERY", recommendation: null, recoveryPlan: null, actions: [], decisionAudit: auditFor(runId, "NO_FEASIBLE_RECOVERY", "NONE", null, trip.constraints, trip, impact, candidates, priority) };
   const feasible = candidates.filter((candidate) => candidate.feasible);

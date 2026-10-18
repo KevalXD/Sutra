@@ -203,6 +203,19 @@ test("root recovery distinguishes infeasibility from a technical adapter failure
   assert.equal((technical.body as { status: string }).status, "TECHNICAL_ERROR");
 });
 
+test("duplicate normalized candidate identities are adapter-contract technical failures", async () => {
+  const alternatives = [
+    { id: "RC-A-ALT", replacementForBookingId: "RAIL-B", departureAt: "2026-11-10T15:30:00", arrivalAt: "2026-11-10T17:45:00", extraCost: 450, source: "SIMULATED_OFFER" as const },
+    { id: "A", replacementForBookingId: "RAIL-B", departureAt: "2026-11-10T16:00:00", arrivalAt: "2026-11-10T18:30:00", extraCost: 350, source: "SIMULATED_OFFER" as const },
+  ];
+  const response = await recoveryRunOutcome(request(), { findAlternatives: async () => alternatives });
+  assert.equal(response.status, 500);
+  const body = response.body as { status: string; decisionAudit: { technicalError?: { code: string; message: string } } };
+  assert.equal(body.status, "TECHNICAL_ERROR");
+  assert.equal(body.decisionAudit.technicalError?.code, "ADAPTER_CONTRACT_VIOLATION");
+  assert.match(body.decisionAudit.technicalError?.message ?? "", /Duplicate recovery candidate ID RC-A/);
+});
+
 test("cancellation uses the canonical trip and returns a validated simulated replacement", async () => {
   const fixture = demoScenarioFor("cancellation");
   const response = await recoveryRunOutcome({ tripId: fixture.trip.id, tripVersion: fixture.trip.version, disruption: fixture.disruption });
