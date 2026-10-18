@@ -12,6 +12,8 @@ import { RepairTimeline, WhatChanged } from "./repair-diff";
 import { SpringCheck, StatusMark } from "./kit";
 import { BorderGlow } from "./card-effects";
 import { RecoveryExplanation } from "./recovery-explanation";
+import { JourneyTimeline } from "./journey-timeline";
+import type { DisruptionAnalysis } from "@/lib/types";
 
 const cities = (bs: { kind: string; origin: string; dest: string }[]) => {
   const legs = bs.filter(b => b.kind === "flight" || b.kind === "train");
@@ -42,8 +44,8 @@ function constraintChecks(trip: Itinerary, result: RecoveryResult) {
   return rows;
 }
 
-export function RecoveryResultView({ trip, result, candidates, selectedId, onRestart }: {
-  trip: Itinerary; result: RecoveryResult; candidates: RecoveryCandidate[]; selectedId?: string; onRestart: () => void;
+export function RecoveryResultView({ trip, result, candidates, selectedId, disruption, onRestart }: {
+  trip: Itinerary; result: RecoveryResult; candidates: RecoveryCandidate[]; selectedId?: string; disruption?: DisruptionAnalysis; onRestart: () => void;
 }) {
   const cur = trip.currency;
   const diffs = Object.fromEntries(result.itinerary.map(b => [b.id, diffOf(b, trip.bookings, result.affectedBookingIds)])) as Record<string, Diff>;
@@ -68,6 +70,7 @@ export function RecoveryResultView({ trip, result, candidates, selectedId, onRes
         <JourneyBand bookings={result.itinerary} currency={cur} diffs={diffs} reveal />
         <WhatChanged original={trip.bookings} repaired={result.itinerary} diffs={diffs} />
       </div>
+      <JourneyTimeline trip={trip} candidates={candidates} recommendedId={selectedId} disruption={disruption} />
       <div className="grid gap-10 lg:grid-cols-2">
         <div>
           <h3 className={H3}>Why this recovery is valid</h3>
