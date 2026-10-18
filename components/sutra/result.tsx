@@ -11,6 +11,7 @@ import { RecoveryComparison } from "./comparison";
 import { RepairTimeline, WhatChanged } from "./repair-diff";
 import { SpringCheck, StatusMark } from "./kit";
 import { BorderGlow } from "./card-effects";
+import { RecoveryExplanation } from "./recovery-explanation";
 import { JourneyTimeline } from "./journey-timeline";
 import type { DisruptionAnalysis } from "@/lib/types";
 
@@ -84,6 +85,7 @@ export function RecoveryResultView({ trip, result, candidates, selectedId, disru
           {!!result.tradeoffs?.length && <ul className="mt-3 space-y-1 text-[15px] text-ink2">{result.tradeoffs.map((tradeoff) => <li key={tradeoff}>• {tradeoff}</li>)}</ul>}
         </div>
       </div>
+      <RecoveryExplanation audit={result.audit} currency={cur} />
       <div>
         <h3 className={H3}>What to do next</h3>
         {result.actions.length ? (
@@ -136,6 +138,7 @@ export function NoFeasibleView({ result, candidates, trip, onRestart }: { result
       </div>
       <RecoveryComparison candidates={candidates} trip={trip}
         heading="Why no alternative works" intro="Each candidate below violates at least one constraint, so none is offered as a recovery." />
+      <RecoveryExplanation audit={result.audit} currency={trip.currency} />
     </Section>
   );
 }

@@ -63,6 +63,10 @@ Copy `.env.example` to `.env.local` and configure one server-side provider. `SUT
 
 Keys are read only by the API route and are never included in browser code or recovery responses. A provider receives only already-feasible candidate facts and returns a strict structured selection; the backend independently checks the candidate and all provider-supplied objective claims, then generates the displayed explanation from verified data. Network, timeout, malformed-output, and validation failures fall back safely. There is no runtime switch from a selected, failing provider to the other provider.
 
+## Explainable recovery audit
+
+Every successful or no-feasible recovery response includes a backend-authored `decisionAudit`. It records the effective traveller constraints, the decision status and source, the selected candidate when one exists, and each candidate's checked rules and violations. The frontend renders this audit directly, so changing the deadline, budget, or overnight preference triggers a fresh authoritative evaluation instead of a local feasibility guess. Technical failures remain separate from no-feasible outcomes and preserve their error code for retry and diagnostics.
+
 ## Check the current changes
 
 From the project folder, run:

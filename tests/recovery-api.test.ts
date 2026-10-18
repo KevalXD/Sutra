@@ -3,6 +3,7 @@ import test from "node:test";
 import { goldenDisruption, goldenTrip } from "@/lib/domain/fixtures/golden-rail-delay-01";
 import { cancellationNoRecoveryScenario, demoScenarioFor } from "@/lib/domain/fixtures/recovery-scenarios";
 import { recoveryRunOutcome, tripOutcome } from "@/lib/recovery/http";
+import type { RecoveryRunResult } from "@/lib/domain/types";
 
 const request = () => ({ tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: goldenDisruption });
 
@@ -22,6 +23,17 @@ test("root recovery endpoint runs the real canonical pipeline", async () => {
   assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-D")?.violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT"]);
   assert.equal(body.recommendation.decisionSource, "DETERMINISTIC_FALLBACK");
   assert.deepEqual(body.actions, [{ id: "ACT-1", kind: "BOOK_REPLACEMENT", itemId: "RAIL-B", description: "Book simulated replacement RC-B-ALT.", automated: false }]);
+});
+
+test("recovery responses include a backend-authored decision audit for every candidate", async () => {
+  const response = await recoveryRunOutcome(request());
+  const body = response.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>;
+  assert.equal(body.decisionAudit.status, "RECOVERED");
+  assert.equal(body.decisionAudit.selectedCandidateId, body.recommendation.selectedCandidateId);
+  assert.equal(body.decisionAudit.decisionSource, body.recommendation.decisionSource);
+  assert.deepEqual(body.decisionAudit.effectiveConstraints, body.effectiveConstraints);
+  assert.deepEqual(body.decisionAudit.candidates.map((candidate) => candidate.candidateId), body.candidates.map((candidate) => candidate.id));
+  assert.ok(body.decisionAudit.candidates.find((candidate) => candidate.candidateId === "RC-D")?.constraintChecks.some((check) => !check.passed));
 });
 
 test("constraint overrides are independently validated and select RC-C through deterministic fallback", async () => {
@@ -48,6 +60,16 @@ test("strict constraints return no recovery with backend-derived reasons and do 
   assert.deepEqual(goldenTrip.constraints, baseline);
   const repeat = await recoveryRunOutcome(request());
   assert.deepEqual((repeat.body as { effectiveConstraints: unknown }).effectiveConstraints, baseline);
+});
+
+test("no-feasible responses keep the audit source empty and expose blocking reasons", async () => {
+  const response = await recoveryRunOutcome({ ...request(), constraintOverrides: { latestArrivalAt: "2026-11-10T19:00:00", maxExtraBudget: 300, noOvernight: true } });
+  const body = response.body as Extract<RecoveryRunResult, { status: "NO_FEASIBLE_RECOVERY" }>;
+  assert.equal(body.decisionAudit.status, "NO_FEASIBLE_RECOVERY");
+  assert.equal(body.decisionAudit.decisionSource, "NONE");
+  assert.equal(body.decisionAudit.selectedCandidateId, null);
+  assert.ok(body.decisionAudit.noFeasibleReasons.some((reason) => reason.kind === "MAX_EXTRA_BUDGET"));
+  assert.ok(body.decisionAudit.noFeasibleReasons.some((reason) => reason.kind === "ARRIVAL_DEADLINE"));
 });
 
 test("constraint override input rejects malformed timestamps, budgets, booleans, and unknown fields", async () => {

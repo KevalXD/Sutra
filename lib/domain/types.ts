@@ -153,6 +153,28 @@ export interface RecoveryRecommendation {
   tradeoffs?: string[];
 }
 
+export type DecisionAuditSource = "AI" | "DETERMINISTIC_FALLBACK" | "NONE";
+
+export interface CandidateDecisionAudit {
+  candidateId: string;
+  feasible: boolean;
+  finalArrivalAt: string;
+  extraCost: number;
+  constraintChecks: ConstraintEvaluation[];
+  violations: ConstraintViolation[];
+}
+
+/** Backend-authored evidence for the recommendation shown to a traveller. */
+export interface DecisionAudit {
+  runId: string;
+  status: RecoveryStatus;
+  decisionSource: DecisionAuditSource;
+  selectedCandidateId: string | null;
+  effectiveConstraints: ConstraintSet;
+  candidates: CandidateDecisionAudit[];
+  noFeasibleReasons: ConstraintViolation[];
+}
+
 export interface ItemTiming { startAt: string; endAt: string }
 export interface ImpactReason { itemId: string; reason: string }
 export interface ImpactAnalysis {
@@ -212,9 +234,9 @@ export interface TravellerAction {
 export interface RecoveryRunRequest { tripId: string; tripVersion: number; disruption: Disruption; demoAttempt?: number; constraintOverrides?: ConstraintOverrides }
 interface RecoveryRunBase { runId: string; tripVersion: number; impact: ImpactAnalysis; candidates: ValidatedRecoveryCandidate[]; effectiveConstraints: ConstraintSet }
 export interface RecoveredRun extends RecoveryRunBase {
-  status: "RECOVERED"; recommendation: RecoveryRecommendation; recoveryPlan: RecoveryPlan; actions: TravellerAction[];
+  status: "RECOVERED"; recommendation: RecoveryRecommendation; recoveryPlan: RecoveryPlan; actions: TravellerAction[]; decisionAudit: DecisionAudit;
 }
 export interface NoFeasibleRun extends RecoveryRunBase {
-  status: "NO_FEASIBLE_RECOVERY"; recommendation: null; recoveryPlan: null; actions: [];
+  status: "NO_FEASIBLE_RECOVERY"; recommendation: null; recoveryPlan: null; actions: []; decisionAudit: DecisionAudit;
 }
 export type RecoveryRunResult = RecoveredRun | NoFeasibleRun;
