@@ -1,4 +1,4 @@
-import type { Alternative, Disruption, Trip } from "../types";
+import type { Alternative, Disruption, SupportedDisruptionProfile, Trip } from "../types";
 import { goldenAlternatives, goldenDisruption, goldenTrip } from "./golden-rail-delay-01";
 
 const noFeasibleTrip: Trip = { ...structuredClone(goldenTrip), id: "trip-no-feasible-recovery-01" };
@@ -21,15 +21,33 @@ const noFeasibleAlternatives: Alternative[] = [
 ];
 const technicalErrorDisruption: Disruption = { ...goldenDisruption, scenarioId: "technical-error-retry-01" };
 
-export interface ScenarioFixture { id: string; trip: Trip; disruption: Disruption; alternatives: Alternative[]; failOnFirstAttempt?: true }
+const bengaluruTrip: Trip = {
+  id: "trip-mangaluru-bengaluru-01", version: 1, currency: "INR",
+  items: [
+    { id: "RAIL-C", kind: "transport", label: "Rail C", mode: "rail", legs: [{ id: "RAIL-C-LEG-1", bookingId: "RAIL-C", origin: "Mangaluru Central", destination: "Hassan Junction", departureAt: "2026-11-12T08:00:00", arrivalAt: "2026-11-12T12:00:00" }] },
+    { id: "RAIL-D", kind: "transport", label: "Rail D", mode: "rail", legs: [{ id: "RAIL-D-LEG-1", bookingId: "RAIL-D", origin: "Hassan Junction", destination: "Bengaluru City", departureAt: "2026-11-12T12:45:00", arrivalAt: "2026-11-12T16:00:00" }] },
+  ],
+  dependencies: [{ id: "DEP-RAIL-C-RAIL-D", fromItemId: "RAIL-C", toItemId: "RAIL-D", kind: "CONNECTION", minimumBufferMinutes: 30 }],
+  constraints: { latestArrivalAt: "2026-11-12T19:00:00", maxExtraBudget: 400, noOvernight: true, softPreferences: ["EARLIER_ARRIVAL"] },
+};
+const bengaluruDisruption: Disruption = { source: "SIMULATED", scenarioId: "mangaluru-bengaluru-delay-01", bookingId: "RAIL-C", kind: "delay", delayMinutes: 90 };
+const bengaluruAlternatives: Alternative[] = [
+  { id: "MB-A-ALT", replacementForBookingId: "RAIL-D", departureAt: "2026-11-12T13:00:00", arrivalAt: "2026-11-12T16:15:00", extraCost: 350, source: "SIMULATED_OFFER" },
+  { id: "MB-B-ALT", replacementForBookingId: "RAIL-D", departureAt: "2026-11-12T14:30:00", arrivalAt: "2026-11-12T17:30:00", extraCost: 250, source: "SIMULATED_OFFER" },
+  { id: "MB-C-ALT", replacementForBookingId: "RAIL-D", departureAt: "2026-11-12T15:30:00", arrivalAt: "2026-11-12T19:30:00", extraCost: 100, source: "SIMULATED_OFFER" },
+];
+
+export interface ScenarioFixture { id: string; trip: Trip; disruption: Disruption; alternatives: Alternative[]; profile?: SupportedDisruptionProfile; failOnFirstAttempt?: true }
 export const recoveryScenarios: readonly ScenarioFixture[] = [
-  { id: goldenDisruption.scenarioId, trip: goldenTrip, disruption: goldenDisruption, alternatives: goldenAlternatives },
-  { id: cancellationDisruption.scenarioId, trip: goldenTrip, disruption: cancellationDisruption, alternatives: cancellationAlternatives },
+  { id: goldenDisruption.scenarioId, trip: goldenTrip, disruption: goldenDisruption, alternatives: goldenAlternatives, profile: { id: goldenDisruption.scenarioId, label: "Rail A delay", bookingId: "RAIL-A", bookingLabel: "Rail A", kind: "delay", delayRange: { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 } } },
+  { id: cancellationDisruption.scenarioId, trip: goldenTrip, disruption: cancellationDisruption, alternatives: cancellationAlternatives, profile: { id: cancellationDisruption.scenarioId, label: "Rail A cancellation", bookingId: "RAIL-A", bookingLabel: "Rail A", kind: "cancellation" } },
   { id: cancellationNoRecoveryDisruption.scenarioId, trip: goldenTrip, disruption: cancellationNoRecoveryDisruption, alternatives: cancellationNoRecoveryAlternatives },
   { id: noFeasibleDisruption.scenarioId, trip: noFeasibleTrip, disruption: noFeasibleDisruption, alternatives: noFeasibleAlternatives },
   { id: technicalErrorDisruption.scenarioId, trip: goldenTrip, disruption: technicalErrorDisruption, alternatives: goldenAlternatives, failOnFirstAttempt: true },
+  { id: bengaluruDisruption.scenarioId, trip: bengaluruTrip, disruption: bengaluruDisruption, alternatives: bengaluruAlternatives, profile: { id: bengaluruDisruption.scenarioId, label: "Rail C delay", bookingId: "RAIL-C", bookingLabel: "Rail C", kind: "delay", delayRange: { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 } } },
 ];
 export const scenarioById = (id: string) => recoveryScenarios.find((scenario) => scenario.id === id);
 export const tripById = (id: string) => recoveryScenarios.find((scenario) => scenario.trip.id === id)?.trip;
 export const demoScenarioFor = (scenario: "delay" | "cancellation" | "infeasible" | "error") => scenarioById({ delay: goldenDisruption.scenarioId, cancellation: cancellationDisruption.scenarioId, infeasible: noFeasibleDisruption.scenarioId, error: technicalErrorDisruption.scenarioId }[scenario])!;
 export const cancellationNoRecoveryScenario = scenarioById(cancellationNoRecoveryDisruption.scenarioId)!;
+export const supportedScenarios = () => recoveryScenarios.filter((scenario): scenario is ScenarioFixture & { profile: SupportedDisruptionProfile } => Boolean(scenario.profile));

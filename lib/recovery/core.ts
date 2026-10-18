@@ -1,5 +1,5 @@
-import { scenarioById, tripById } from "@/lib/domain/fixtures/recovery-scenarios";
-import type { Alternative, CandidateDecisionAudit, ConnectionCheck, ConstraintEvaluation, ConstraintOverrides, ConstraintViolation, DecisionAudit, Disruption, GeneratedRecoveryCandidate, ImpactAnalysis, ImpactState, ItemTiming, RecoveryChange, RecoveryPlan, RecoveryRecommendation, RecoveryRunRequest, RecoveryRunResult, TravellerAction, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
+import { scenarioById, supportedScenarios, tripById } from "@/lib/domain/fixtures/recovery-scenarios";
+import type { Alternative, CandidateDecisionAudit, ConnectionCheck, ConstraintEvaluation, ConstraintOverrides, ConstraintViolation, DecisionAudit, Disruption, GeneratedRecoveryCandidate, ImpactAnalysis, ImpactState, ItemTiming, JourneyCatalogueEntry, JourneyCatalogueItem, JourneyCatalogueResponse, RecoveryChange, RecoveryPlan, RecoveryRecommendation, RecoveryRunRequest, RecoveryRunResult, TravellerAction, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
 import { validateAiRecommendation, type RecommendationDraft } from "./recommendation";
 
 export class RecoveryInputError extends Error {
@@ -187,13 +187,61 @@ export async function getTrip(tripId: string) {
   const trip = tripById(tripId);
   return trip ? structuredClone(trip) : null;
 }
+function catalogueItem(item: Trip["items"][number]): JourneyCatalogueItem {
+  if (item.kind === "transport") {
+    const first = item.legs[0], last = item.legs.at(-1)!;
+    return { id: item.id, kind: item.kind, label: item.label, origin: first.origin, destination: last.destination, departureAt: first.departureAt, arrivalAt: last.arrivalAt };
+  }
+  if (item.kind === "accommodation") return { id: item.id, kind: item.kind, label: item.label, location: item.location, checkInAt: item.checkInAt, checkOutAt: item.checkOutAt };
+  return { id: item.id, kind: item.kind, label: item.label, location: item.location, startsAt: item.startsAt, endsAt: item.endsAt };
+}
+export async function getJourneyCatalogue(): Promise<JourneyCatalogueResponse> {
+  const grouped = new Map<string, JourneyCatalogueEntry>();
+  for (const scenario of supportedScenarios()) {
+    const firstTransport = scenario.trip.items.find((item) => item.kind === "transport");
+    const lastTransport = [...scenario.trip.items].reverse().find((item) => item.kind === "transport");
+    if (!firstTransport || !lastTransport || firstTransport.kind !== "transport" || lastTransport.kind !== "transport") continue;
+    const existing = grouped.get(scenario.trip.id);
+    if (existing) { existing.supportedDisruptions.push(structuredClone(scenario.profile)); continue; }
+    grouped.set(scenario.trip.id, {
+      tripId: scenario.trip.id, tripVersion: scenario.trip.version,
+      label: `${firstTransport.legs[0].origin} to ${lastTransport.legs.at(-1)!.destination}`,
+      origin: firstTransport.legs[0].origin, destination: lastTransport.legs.at(-1)!.destination,
+      journeyDate: firstTransport.legs[0].departureAt.slice(0, 10), currency: scenario.trip.currency,
+      defaultConstraints: structuredClone(scenario.trip.constraints), items: scenario.trip.items.map(catalogueItem),
+      supportedDisruptions: [structuredClone(scenario.profile)],
+    });
+  }
+  return { journeys: [...grouped.values()] };
+}
+function assertSupportedDisruption(scenario: NonNullable<ReturnType<typeof scenarioById>>, trip: Trip, disruption: Disruption) {
+  const profile = scenario.profile;
+  if (!scenario || scenario.trip.id !== trip.id) throw new RecoveryInputError("DOMAIN_REJECTED", "The disruption profile is not supported for this trip and booking.");
+  // Legacy demo-only scenarios intentionally remain callable by their exact fixture request,
+  // but are never returned by the ordinary selectable journey catalogue.
+  if (!profile) {
+    if (scenario.disruption.bookingId !== disruption.bookingId || scenario.disruption.kind !== disruption.kind || scenario.disruption.delayMinutes !== disruption.delayMinutes) throw new RecoveryInputError("DOMAIN_REJECTED", "The demo disruption does not match its supported fixture.");
+    return;
+  }
+  if (profile.id !== disruption.scenarioId || profile.bookingId !== disruption.bookingId || profile.kind !== disruption.kind) throw new RecoveryInputError("DOMAIN_REJECTED", "The disruption profile is not supported for this trip and booking.");
+  if (disruption.kind === "cancellation") {
+    if (disruption.delayMinutes !== undefined) throw new RecoveryInputError("DOMAIN_REJECTED", "A cancellation must not include delayMinutes.");
+    return;
+  }
+  const range = profile.delayRange;
+  if (!range) {
+    if (disruption.delayMinutes !== scenario.disruption.delayMinutes) throw new RecoveryInputError("DOMAIN_REJECTED", "This delay profile does not accept a changed delay duration.");
+    return;
+  }
+  const delay = disruption.delayMinutes;
+  if (typeof delay !== "number" || !Number.isInteger(delay) || delay < range.minimumMinutes || delay > range.maximumMinutes || (delay - range.minimumMinutes) % range.stepMinutes !== 0) throw new RecoveryInputError("DOMAIN_REJECTED", `delayMinutes must be ${range.minimumMinutes}-${range.maximumMinutes} in ${range.stepMinutes}-minute steps for this profile.`);
+}
 export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDeps = {}): Promise<RecoveryRunResult> {
   const baselineTrip = await getTrip(request.tripId); if (!baselineTrip) throw new RecoveryInputError("TRIP_NOT_FOUND", `Trip ${request.tripId} was not found.`); if (baselineTrip.version !== request.tripVersion) throw new RecoveryInputError("STALE_TRIP_VERSION", `Trip is at version ${baselineTrip.version}.`);
   const trip: Trip = { ...baselineTrip, constraints: { ...baselineTrip.constraints, ...request.constraintOverrides } };
   const scenario = scenarioById(request.disruption.scenarioId);
-  if (!scenario || scenario.trip.id !== trip.id || scenario.disruption.bookingId !== request.disruption.bookingId || scenario.disruption.kind !== request.disruption.kind || scenario.disruption.delayMinutes !== request.disruption.delayMinutes) {
-    throw new RecoveryInputError("DOMAIN_REJECTED", "The simulated disruption does not match a supported deterministic scenario.");
-  }
+  if (!scenario) throw new RecoveryInputError("DOMAIN_REJECTED", "The selected disruption profile is not supported.");
+  assertSupportedDisruption(scenario, trip, request.disruption);
   const impact = analyzeImpact(trip, request.disruption);
   let alternatives: Alternative[];
   try {
