@@ -31,6 +31,9 @@ export type SoftPreference =
   | "FEWER_CHANGES"
   | "PRESERVE_ITINERARY";
 
+/** The two traveller-selectable ranking objectives for an explicit recovery run. */
+export type RecoveryPriority = Extract<SoftPreference, "LOWER_COST" | "EARLIER_ARRIVAL">;
+
 export type DependencyKind =
   | "TEMPORAL"
   | "CONNECTION"
@@ -106,6 +109,8 @@ export interface ConstraintOverrides {
   latestArrivalAt?: string;
   maxExtraBudget?: number;
   noOvernight?: boolean;
+  /** Per-run ranking objective; never mutates the stored trip. */
+  priority?: RecoveryPriority;
 }
 
 export interface Dependency {
@@ -220,6 +225,8 @@ export interface DecisionAudit {
   decisionSource: DecisionAuditSource;
   selectedCandidateId: string | null;
   effectiveConstraints: ConstraintSet | null;
+  /** Present only when this calculation received an explicit traveller priority. */
+  appliedPriority?: RecoveryPriority;
   candidates: CandidateDecisionAudit[];
   noFeasibleReasons: ConstraintViolation[];
   technicalError?: { code: string; message: string };

@@ -56,6 +56,23 @@ test("the provider sees only feasible candidates and is never called when no rec
   assert.equal(noFeasible.status, "NO_FEASIBLE_RECOVERY"); assert.equal(calls, 1);
 });
 
+test("the provider receives the explicit priority and cannot override its deterministic ranking", async () => {
+  let activePriority: string | undefined;
+  let seen: string[] = [];
+  const result = await runRecovery({ ...request(), constraintOverrides: { priority: "LOWER_COST" } }, {
+    recommender: { recommend: async (context) => {
+      activePriority = context.activePriority;
+      seen = context.feasibleCandidates.map((candidate) => candidate.id);
+      // A valid-but-wrong AI choice must be rejected in favour of the priority fallback.
+      return { selectedCandidateId: "RC-A", preference: "LOWER_COST", comparedCandidateId: "RC-B", facts: rcAFacts };
+    } },
+  });
+  assert.equal(activePriority, "LOWER_COST");
+  assert.deepEqual(seen, ["RC-A", "RC-B"]);
+  assert.equal(result.status === "RECOVERED" && result.recommendation.selectedCandidateId, "RC-B");
+  assert.equal(result.status === "RECOVERED" && result.decisionAudit.appliedPriority, "LOWER_COST");
+});
+
 test("OpenAI adapter sends only feasible facts and parses a strict structured selection", async () => {
   let requestBody: Record<string, unknown> | undefined;
   const provider = new OpenAiRecommendationProvider({ apiKey: "test-key", model: "test-model", fetchFn: async (_url, init) => {

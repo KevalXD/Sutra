@@ -126,7 +126,7 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
             {phase === "RECOVERY_ANALYSIS" && <RecoveryAnalysis stage={f.stage} />}
             {phase === "RECOVERY_READY" && result && <RecoveryResultView trip={trip} result={result} candidates={f.candidates} selectedId={f.selectedId} disruption={analysis} onRestart={restart} />}
             {phase === "NO_FEASIBLE_RECOVERY" && result && <NoFeasibleView trip={trip} result={result} candidates={f.candidates} onRestart={restart} />}
-            {originalTrip && result && f.effectiveConstraints && (hasResult || phase === "RECOVERY_ANALYSIS" || phase === "TECHNICAL_ERROR") && <TravellerConstraints trip={trip} defaults={originalTrip} effectiveConstraints={f.effectiveConstraints} busy={phase === "RECOVERY_ANALYSIS"} onRecalculate={f.recalculateRecovery} />}
+            {originalTrip && result && f.effectiveConstraints && (hasResult || phase === "RECOVERY_ANALYSIS" || phase === "TECHNICAL_ERROR") && <TravellerConstraints trip={trip} defaults={originalTrip} effectiveConstraints={f.effectiveConstraints} appliedPriority={result.audit?.appliedPriority} busy={phase === "RECOVERY_ANALYSIS"} onRecalculate={f.recalculateRecovery} />}
             {phase === "TECHNICAL_ERROR" && f.error && <TechnicalErrorView error={f.error} onRetry={f.retryRecovery} />}
           </TracingBeam>
         )}
