@@ -102,6 +102,23 @@ test("presentation renders validator-provided delayed timing and connection buff
   assert.match(html, /1h 00m buffer/);
 });
 
+test("journey timeline separates the original plan from the recommended validator-backed recovery", async () => {
+  const run = await runRecovery({ tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: goldenDisruption });
+  assert.equal(run.status, "RECOVERED");
+  if (run.status !== "RECOVERED") return;
+  const { JourneyTimeline } = await import("@/components/sutra/journey-timeline");
+  const projected = presentRun(goldenTrip, run);
+  const html = renderToStaticMarkup(createElement(JourneyTimeline, { trip: presentTrip(goldenTrip), candidates: projected.candidates, recommendedId: projected.selectedId, disruption: { disruption: { bookingId: "RAIL-A", kind: "delay", delayMin: 120 }, affectedBookingIds: [], impact: [] } }));
+  assert.match(html, /Original journey/);
+  assert.match(html, /Recovery itinerary/);
+  assert.match(html, /Mangaluru Central/);
+  assert.match(html, /Disrupted/);
+  assert.match(html, /Connection check passed/);
+  assert.match(html, /Previewing changes this view only/);
+  assert.match(html, /RC-A.*Recommended/);
+  assert.doesNotMatch(html, /RC-C.*Previewing changes/);
+});
+
 test("frontend renders a technical error distinctly with a retry action", async () => {
   const { TechnicalErrorView } = await import("@/components/sutra/sections");
   const html = renderToStaticMarkup(createElement(TechnicalErrorView, { error: { code: "RECOVERY_SERVICE_UNAVAILABLE", message: "Recovery could not be calculated. Please retry." }, onRetry: noop }));
