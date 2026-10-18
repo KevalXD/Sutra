@@ -61,7 +61,7 @@ function candidateToUi(candidate: Record<string, unknown>, original: Itinerary):
       route: "route",
     };
     return mapping[kind] ?? "route";
-  }
+  };
   return { id: String(candidate.id), label: String(candidate.label ?? ("Provider recovery " + String(candidate.id))), itinerary: items, changes: Object.values((candidate.recoveryChanges ?? {}) as Record<string, unknown>).filter(value => value !== "UNCHANGED").length, extraCost: Number(candidate.extraCost ?? 0), feasible: Boolean(candidate.feasible), violations: violations.map(v => ({ kind: toViolationKind(String(v.kind)), bookingId: String(v.itemId), message: String(v.message) })), affectedBookingIds: [], explanation: "", arrival: String(candidate.finalArrivalAt ?? "") };
 }
 
