@@ -1,5 +1,5 @@
 import { scenarioById, tripById } from "@/lib/domain/fixtures/recovery-scenarios";
-import type { Alternative, ConnectionCheck, ConstraintEvaluation, ConstraintOverrides, ConstraintViolation, Disruption, GeneratedRecoveryCandidate, ImpactAnalysis, ImpactState, ItemTiming, RecoveryChange, RecoveryPlan, RecoveryRecommendation, RecoveryRunRequest, RecoveryRunResult, TravellerAction, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
+import type { Alternative, CandidateDecisionAudit, ConnectionCheck, ConstraintEvaluation, ConstraintOverrides, ConstraintViolation, DecisionAudit, Disruption, GeneratedRecoveryCandidate, ImpactAnalysis, ImpactState, ItemTiming, RecoveryChange, RecoveryPlan, RecoveryRecommendation, RecoveryRunRequest, RecoveryRunResult, TravellerAction, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
 import { validateAiRecommendation, type RecommendationDraft } from "./recommendation";
 
 export class RecoveryInputError extends Error {
@@ -158,6 +158,17 @@ function evaluations(trip: Trip, impact: ImpactAnalysis, candidate: GeneratedRec
   return result;
 }
 function validate(trip: Trip, impact: ImpactAnalysis, candidate: GeneratedRecoveryCandidate): ValidatedRecoveryCandidate { const times = repairedTimings(trip, impact, candidate); const checks = connectionChecks(trip, times); const violations = evaluations(trip, impact, candidate, times, checks).filter((x) => !x.passed).map(({ kind, itemId, message }) => ({ kind, itemId, message })); return { ...candidate, repairedTimings: times, connectionChecks: checks, feasible: !violations.length, violations }; }
+function auditFor(runId: string, status: DecisionAudit["status"], source: DecisionAudit["decisionSource"], selectedCandidateId: string | null, constraints: Trip["constraints"], trip: Trip, impact: ImpactAnalysis, candidates: ValidatedRecoveryCandidate[]): DecisionAudit {
+  const audited: CandidateDecisionAudit[] = candidates.map((candidate) => ({
+    candidateId: candidate.id,
+    feasible: candidate.feasible,
+    finalArrivalAt: candidate.finalArrivalAt,
+    extraCost: candidate.extraCost,
+    constraintChecks: evaluations(trip, impact, candidate, candidate.repairedTimings, candidate.connectionChecks),
+    violations: candidate.violations,
+  }));
+  return { runId, status, decisionSource: source, selectedCandidateId, effectiveConstraints: structuredClone(constraints), candidates: audited, noFeasibleReasons: audited.flatMap((candidate) => candidate.violations) };
+}
 function fallback(candidates: ValidatedRecoveryCandidate[]): RecoveryRecommendation { const best = [...candidates].filter((x) => x.feasible).sort((a, b) => a.extraCost - b.extraCost || a.finalArrivalAt.localeCompare(b.finalArrivalAt) || a.id.localeCompare(b.id))[0]; if (!best) throw new TechnicalFailure("NO_FEASIBLE", "No feasible candidates."); return { selectedCandidateId: best.id, decisionSource: "DETERMINISTIC_FALLBACK", reason: `${best.id} is the lowest-cost feasible recovery.` }; }
 function plan(trip: Trip, impact: ImpactAnalysis, candidate: ValidatedRecoveryCandidate): RecoveryPlan {
   const times = candidate.repairedTimings; const original = trip.items.filter((x) => x.kind === "transport").map((x) => timing(trip, x.id)).sort((a, b) => b.endAt.localeCompare(a.endAt))[0].endAt;
@@ -190,8 +201,8 @@ export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDep
     alternatives = deps.findAlternatives ? await deps.findAlternatives({ trip, disruption: request.disruption, impact }) : structuredClone(scenario.alternatives);
   }
   catch (error) { throw error instanceof TechnicalFailure ? error : new TechnicalFailure("TRANSPORT_ADAPTER_FAILED", error instanceof Error ? error.message : "Transport adapter failed."); }
-  const candidates = alternatives.map((x) => candidateFor(trip, request.disruption, impact, x)).map((x) => validate(trip, impact, x)); const base = { runId: `run-${request.disruption.scenarioId}-v${trip.version}`, tripVersion: trip.version, impact, candidates, effectiveConstraints: structuredClone(trip.constraints) };
-  if (!candidates.some((x) => x.feasible)) return { ...base, status: "NO_FEASIBLE_RECOVERY", recommendation: null, recoveryPlan: null, actions: [] };
+  const candidates = alternatives.map((x) => candidateFor(trip, request.disruption, impact, x)).map((x) => validate(trip, impact, x)); const runId = `run-${request.disruption.scenarioId}-v${trip.version}`; const base = { runId, tripVersion: trip.version, impact, candidates, effectiveConstraints: structuredClone(trip.constraints) };
+  if (!candidates.some((x) => x.feasible)) return { ...base, status: "NO_FEASIBLE_RECOVERY", recommendation: null, recoveryPlan: null, actions: [], decisionAudit: auditFor(runId, "NO_FEASIBLE_RECOVERY", "NONE", null, trip.constraints, trip, impact, candidates) };
   const feasible = candidates.filter((candidate) => candidate.feasible);
   let recommendation: RecoveryRecommendation | undefined;
   if (deps.recommender) {
@@ -207,5 +218,5 @@ export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDep
     }
   }
   recommendation ??= fallback(candidates); const selected = candidates.find((x) => x.id === recommendation.selectedCandidateId)!; const recoveryPlan = plan(trip, impact, selected);
-  return { ...base, status: "RECOVERED", recommendation, recoveryPlan, actions: actions(recoveryPlan, selected) };
+  return { ...base, status: "RECOVERED", recommendation, recoveryPlan, actions: actions(recoveryPlan, selected), decisionAudit: auditFor(runId, "RECOVERED", recommendation.decisionSource, recommendation.selectedCandidateId, trip.constraints, trip, impact, candidates) };
 }
