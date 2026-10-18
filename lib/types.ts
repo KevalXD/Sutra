@@ -112,6 +112,7 @@ export interface ApiError {
     | "RECOVERY_SERVICE_UNAVAILABLE"
     | "ALTERNATIVES_LOAD_FAILED";
   message: string;
+  audit?: import("./domain/types").DecisionAudit;
 }
 export type ScenarioId = "delay" | "cancellation" | "infeasible" | "error";
 export type Phase =

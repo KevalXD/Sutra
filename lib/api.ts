@@ -6,7 +6,7 @@ import type { ApiError, DisruptionAnalysis, Itinerary, RecoveryCandidate, Recove
 export class SutraApiError extends Error { constructor(public error: ApiError) { super(error.message); } }
 async function call<T>(path: string, fallback: ApiError, init?: RequestInit): Promise<T> {
   let response: Response; try { response = await fetch(path, init); } catch { throw new SutraApiError(fallback); }
-  if (!response.ok) { const body = await response.json().catch(() => null); throw new SutraApiError(body?.error ?? fallback); }
+  if (!response.ok) { const body = await response.json().catch(() => null); throw new SutraApiError({ ...(body?.error ?? fallback), ...(body?.decisionAudit ? { audit: body.decisionAudit } : {}) }); }
   return response.json();
 }
 export const getTrip = async (scenario: ScenarioId, attempt: number): Promise<Itinerary> => {

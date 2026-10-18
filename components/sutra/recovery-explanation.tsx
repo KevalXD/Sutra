@@ -11,7 +11,7 @@ const constraintLabel = (kind: string) => ({
 
 /** Renders the backend decision evidence without recalculating feasibility in React. */
 export function RecoveryExplanation({ audit, currency }: { audit?: DecisionAudit; currency: string }) {
-  if (!audit) return null;
+  if (!audit || !audit.effectiveConstraints) return null;
   const selected = audit.selectedCandidateId ? audit.candidates.find((candidate) => candidate.candidateId === audit.selectedCandidateId) : undefined;
   const source = audit.decisionSource === "AI" ? "AI recommendation (post-validated)" : audit.decisionSource === "DETERMINISTIC_FALLBACK" ? "Deterministic fallback" : "No candidate selected";
   const constraints = audit.effectiveConstraints;
