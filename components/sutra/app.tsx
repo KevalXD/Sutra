@@ -10,6 +10,7 @@ import { NoFeasibleView, RecoveryResultView } from "./result";
 import { FloatingDock, ProgressiveBlur, StatusMark, TracingBeam, type DockStage, type MarkStatus } from "./kit";
 import { Grainient } from "./grainient";
 import { Meteors } from "@/components/ui/meteors";
+import { TravellerConstraints } from "./traveller-constraints";
 
 const SCENARIOS: { id: ScenarioId; label: string }[] = [
   { id: "delay", label: "Delay" }, { id: "cancellation", label: "Cancellation" },
@@ -25,6 +26,10 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
   const { phase, trip, analysis, result } = f;
   const reduce = useReducedMotion();
   const [highlightId, setHighlightId] = useState<string>();
+  const [originalTrip, setOriginalTrip] = useState<typeof trip>();
+
+  useEffect(() => { setOriginalTrip(undefined); }, [scenario]);
+  useEffect(() => { if (trip && !originalTrip) setOriginalTrip(trip); }, [trip, originalTrip]);
 
   useEffect(() => {
     const id = SCROLL_TARGET[phase];
@@ -121,6 +126,7 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
             {phase === "RECOVERY_ANALYSIS" && <RecoveryAnalysis stage={f.stage} />}
             {phase === "RECOVERY_READY" && result && <RecoveryResultView trip={trip} result={result} candidates={f.candidates} selectedId={f.selectedId} onRestart={restart} />}
             {phase === "NO_FEASIBLE_RECOVERY" && result && <NoFeasibleView trip={trip} result={result} candidates={f.candidates} onRestart={restart} />}
+            {originalTrip && result && f.effectiveConstraints && (hasResult || phase === "RECOVERY_ANALYSIS" || phase === "TECHNICAL_ERROR") && <TravellerConstraints trip={trip} defaults={originalTrip} effectiveConstraints={f.effectiveConstraints} busy={phase === "RECOVERY_ANALYSIS"} onRecalculate={f.recalculateRecovery} />}
             {phase === "TECHNICAL_ERROR" && f.error && <TechnicalErrorView error={f.error} onRetry={f.retryRecovery} />}
           </TracingBeam>
         )}

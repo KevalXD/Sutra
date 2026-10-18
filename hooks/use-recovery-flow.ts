@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getTrip, runScenario, SutraApiError } from "@/lib/api";
 import type { ApiError, DisruptionAnalysis, Itinerary, Phase, RecoveryCandidate, RecoveryResult, ScenarioId } from "@/lib/types";
+import type { ConstraintOverrides, ConstraintSet } from "@/lib/domain/types";
 
 /** Stages 0-1 follow real API calls (alternatives, recovery request); 2-4 are fixed-duration presentation steps. */
 export const SEARCH_STAGES = [
@@ -17,6 +18,7 @@ export function useRecoveryFlow(scenario: ScenarioId) {
   const [trip, setTrip] = useState<Itinerary>();
   const [analysis, setAnalysis] = useState<DisruptionAnalysis>();
   const [result, setResult] = useState<RecoveryResult>();
+  const [effectiveConstraints, setEffectiveConstraints] = useState<ConstraintSet>();
   const [candidates, setCandidates] = useState<RecoveryCandidate[]>([]);
   const [selectedId, setSelectedId] = useState<string>();
   const [stage, setStage] = useState(0);
@@ -32,7 +34,7 @@ export function useRecoveryFlow(scenario: ScenarioId) {
 
   useEffect(() => {
     let alive = true;
-    setPhase("IDLE"); setError(undefined); setAnalysis(undefined); setResult(undefined);
+    setPhase("IDLE"); setError(undefined); setAnalysis(undefined); setResult(undefined); setEffectiveConstraints(undefined);
     setCandidates([]); setSelectedId(undefined); setStage(0);
     getTrip(scenario, retries)
       .then(trip => { if (alive) { setTrip(trip); setPhase("TRIP_LOADED"); } })
@@ -47,7 +49,7 @@ export function useRecoveryFlow(scenario: ScenarioId) {
     recoveryRequestInFlight.current = true;
     try {
       const run = await runScenario(scenario, retries);
-      setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result);
+      setTrip(run.effectiveTrip); setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result); setEffectiveConstraints(run.effectiveConstraints);
       setPhase("DISRUPTION_DETECTED");
     } catch (e) { fail(e); }
     finally { recoveryRequestInFlight.current = false; }
@@ -58,7 +60,7 @@ export function useRecoveryFlow(scenario: ScenarioId) {
     try {
       setError(undefined);
       const run = await runScenario(scenario, retries + 1);
-      setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result);
+      setTrip(run.effectiveTrip); setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result); setEffectiveConstraints(run.effectiveConstraints);
       setPhase(run.result.feasible ? "RECOVERY_READY" : "NO_FEASIBLE_RECOVERY");
     } catch (e) { fail(e); }
     finally { recoveryRequestInFlight.current = false; }
@@ -77,5 +79,18 @@ export function useRecoveryFlow(scenario: ScenarioId) {
     } catch (e) { fail(e); }
   };
 
-  return { phase, trip, analysis, result, candidates, selectedId, stage, error, reload, retryRecovery, simulateDisruption, analyzeImpact, findRecovery };
+  const recalculateRecovery = async (constraintOverrides: ConstraintOverrides): Promise<boolean> => {
+    if (recoveryRequestInFlight.current) return false;
+    recoveryRequestInFlight.current = true;
+    setPhase("RECOVERY_ANALYSIS"); setStage(0); setError(undefined);
+    try {
+      const run = await runScenario(scenario, retries, constraintOverrides);
+      setTrip(run.effectiveTrip); setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result); setEffectiveConstraints(run.effectiveConstraints);
+      setPhase(run.result.feasible ? "RECOVERY_READY" : "NO_FEASIBLE_RECOVERY");
+      return true;
+    } catch (e) { fail(e); return false; }
+    finally { recoveryRequestInFlight.current = false; }
+  };
+
+  return { phase, trip, analysis, result, effectiveConstraints, candidates, selectedId, stage, error, reload, retryRecovery, simulateDisruption, analyzeImpact, findRecovery, recalculateRecovery };
 }

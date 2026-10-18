@@ -18,10 +18,10 @@ const TravelGlobe = dynamic(() => import("./travel-globe").then(module => module
 });
 
 /* ───────── shared primitives ───────── */
-export function Btn({ children, onClick, variant = "primary" }: { children: ReactNode; onClick: () => void; variant?: "primary" | "ghost" | "neutral" }) {
+export function Btn({ children, onClick, variant = "primary", disabled = false }: { children: ReactNode; onClick: () => void; variant?: "primary" | "ghost" | "neutral"; disabled?: boolean }) {
   return (
-    <button type="button" onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-[10px] px-5 py-2.5 text-[15px] font-medium transition active:translate-y-px ${
+    <button type="button" onClick={onClick} disabled={disabled}
+      className={`inline-flex items-center gap-2 rounded-[10px] px-5 py-2.5 text-[15px] font-medium transition active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 ${
         variant === "primary" ? "bg-green text-bg hover:bg-green-bright" : variant === "neutral" ? "bg-ink text-bg hover:bg-ink2" : "border border-line-strong text-ink2 hover:bg-soft hover:text-ink"}`}>
       {children}
     </button>
