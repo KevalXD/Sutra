@@ -60,7 +60,7 @@ export function Hero({ trip }: { trip?: Itinerary }) {
             <span className="block">the journey.</span>
           </h1>
           <p className="mt-6 max-w-xl text-[17px] text-ink2">
-            Sutra traces how one disruption ripples through connected bookings, checks every option against your constraints, and shows exactly what changed.
+            See what happened to your journey, find an option that fits what matters to you, and understand why Sutra recommends it.
           </p>
           <p className="mt-8 font-mono text-[13px] text-muted" role={trip ? undefined : "status"}>
             {trip ? `Demo trip · ${cities.map(placeName).join(" → ")} · ${day(trip.bookings[0].start)} 2026 · simulated data` : "Loading journey…"}
@@ -78,13 +78,13 @@ export function Hero({ trip }: { trip?: Itinerary }) {
 export function TripOverview({ trip, diffs, disruption, highlightId, cta }: { trip: Itinerary; diffs?: Record<string, Diff>; disruption?: DisruptionAnalysis["disruption"]; highlightId?: string; cta?: ReactNode }) {
   const c = trip.constraints;
   return (
-    <Section id="trip" kicker="01 · Trip" title="Your journey">
+    <Section id="trip" kicker="01 · Your journey" title="Your journey">
       <JourneyBand bookings={trip.bookings} currency={trip.currency} diffs={diffs} disruption={disruption} highlightId={highlightId} idPrefix="trip" />
       <dl className="grid gap-x-8 gap-y-5 border-t border-line pt-6 sm:grid-cols-2 lg:grid-cols-4">
         <div><dt className="text-[13px] text-muted">Home</dt><dd className="mt-1 font-display text-xl">{placeName(c.home)}</dd></div>
-        <div><dt className="text-[13px] text-muted">Maximum extra budget</dt><dd className="mt-1 font-display text-xl">{formatMoney(c.maxExtraBudget, trip.currency)}</dd></div>
+        <div><dt className="text-[13px] text-muted">Maximum extra amount I can spend</dt><dd className="mt-1 font-display text-xl">{formatMoney(c.maxExtraBudget, trip.currency)}</dd></div>
         <div><dt className="text-[13px] text-muted">Overnight stay</dt><dd className="mt-1 font-display text-xl">{c.noOvernight ? "Not allowed" : "Allowed"}</dd>{c.noOvernight && <dd className="font-mono text-[12px] text-muted">23:00–05:00</dd>}</div>
-        <div><dt className="text-[13px] text-muted">Latest arrival</dt>{c.mustBeAt?.map(g => (
+        <div><dt className="text-[13px] text-muted">I need to arrive by</dt>{c.mustBeAt?.map(g => (
           <dd key={g.label} className="mt-1 font-display text-xl">{g.label}<span className="block font-mono text-[12px] text-muted">{placeName(g.city)} by {hm(g.arriveBy)}, {day(g.arriveBy)}</span></dd>))}</div>
       </dl>
       {cta}
@@ -97,14 +97,14 @@ export function DisruptionEvent({ analysis, trip, highlightId, onHighlight, cta 
   const d = analysis.disruption;
   const b = trip.bookings.find(x => x.id === d.bookingId);
   const bookingLabel = b?.kind === "train" ? "Rail booking" : b?.kind === "flight" ? "Flight" : "Transport booking";
-  const title = d.kind === "delay" ? <>{bookingLabel} {d.bookingId} delayed <span className="text-warn">{fmtDuration(d.delayMin ?? 0)}</span></>
-    : <>{bookingLabel} {d.bookingId} <span className="text-danger">cancelled</span></>;
+  const title = d.kind === "delay" ? <>{bookingLabel} delayed <span className="text-warn">{fmtDuration(d.delayMin ?? 0)}</span></>
+    : <>{bookingLabel} <span className="text-danger">cancelled</span></>;
   return (
-    <Section id="disruption" kicker="02 · Disruption" title={title} tone="danger">
+    <Section id="disruption" kicker="02 · What happened" title={title} tone="danger">
       <p className="max-w-2xl text-[17px] text-ink2">
         {b ? `${placeName(b.origin)} → ${placeName(b.dest)}, originally ${hm(b.start)}–${hm(b.end)}. ` : ""}
         {d.kind === "delay" ? "This simulated service now arrives later than planned." : "This simulated service will not operate, so the journey cannot start as booked."}
-        {" "}Affected downstream: <span className="font-mono text-[15px] text-ink">{analysis.affectedBookingIds.join(", ")}</span>.
+        {" "}Sutra will check the rest of your connected journey for knock-on effects.
       </p>
       <AffectedBookings analysis={analysis} trip={trip} highlightId={highlightId} onHighlight={onHighlight} />
       {cta}
@@ -117,7 +117,7 @@ export function ImpactTrace({ analysis, cta }: { analysis: DisruptionAnalysis; c
   const reduce = useReducedMotion();
   const steps = analysis.impact;
   return (
-    <Section id="impact" kicker="03 · Impact" title="What this breaks" tone="warn">
+    <Section id="impact" kicker="03 · What this changes" title="What this affects" tone="warn">
       <ol className="max-w-2xl">
         {steps.map((s, i) => (
           <motion.li key={i} className="relative flex gap-5 pb-9 last:pb-0"
@@ -142,7 +142,7 @@ export function ImpactTrace({ analysis, cta }: { analysis: DisruptionAnalysis; c
 /* ───────── 04 Recovery analysis ───────── */
 export function RecoveryAnalysis({ stage }: { stage: number }) {
   return (
-    <Section id="analysis" kicker="04 · Recovery" title="Sutra is repairing the journey">
+    <Section id="analysis" kicker="04 · Finding an option" title="Sutra is checking your travel options">
       <ThoughtLine steps={SEARCH_STAGES} current={stage} done={false} doneLabel="Recovery found." />
     </Section>
   );
@@ -154,7 +154,6 @@ export function TechnicalErrorView({ error, onRetry }: { error: ApiError; onRetr
     <Section id="error" kicker="System · Technical error" title={<span className="flex items-center gap-4"><ServerCrash aria-hidden className="size-9 text-danger" />{error.message}</span>} tone="danger">
       <div role="alert" className="max-w-2xl rounded-[18px] border border-danger/50 bg-elevated p-6">
         <p className="text-[16px] text-ink2">This is a system problem, not a recovery result. Your journey has not been judged infeasible.</p>
-        <p className="mt-3 font-mono text-[12px] text-muted">{error.code}</p>
       </div>
       <Btn onClick={onRetry}><RotateCcw aria-hidden className="size-4" />Retry</Btn>
     </Section>

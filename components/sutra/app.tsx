@@ -52,7 +52,7 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
     ? Object.fromEntries(trip.bookings.map(b => [b.id, b.id === analysis.disruption.bookingId ? "CHANGED" : analysis.affectedBookingIds.includes(b.id) ? "AFFECTED" : "UNCHANGED"])) as Record<string, Diff>
     : undefined;
 
-  const next = phase === "TRIP_LOADED" ? { label: "Simulate disruption", run: f.simulateDisruption }
+  const next = phase === "TRIP_LOADED" ? { label: "Find my best travel option", run: f.findBestOption }
     : phase === "DISRUPTION_DETECTED" ? { label: "Analyze impact", run: f.analyzeImpact }
     : phase === "IMPACT_ANALYSIS" ? { label: "Find recovery", run: f.findRecovery } : null;
 
@@ -114,7 +114,7 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
         {trip && (
           <TracingBeam>
             <TripOverview trip={trip} diffs={tripDiffs} highlightId={highlightId} disruption={hasDisruption ? analysis!.disruption : undefined}
-              cta={phase === "TRIP_LOADED" ? <Btn onClick={f.simulateDisruption}><Radar aria-hidden className="size-4" />Simulate disruption</Btn> : undefined} />
+              cta={phase === "TRIP_LOADED" ? <div className="flex flex-wrap items-center gap-3"><Btn onClick={f.findBestOption}><Search aria-hidden className="size-4" />Find my best travel option</Btn><Btn variant="ghost" onClick={f.simulateDisruption}><Radar aria-hidden className="size-4" />Show me the guided demo</Btn></div> : undefined} />
 
             {hasDisruption && analysis && (
               <DisruptionEvent analysis={analysis} trip={trip} highlightId={highlightId} onHighlight={setHighlightId}

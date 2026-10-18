@@ -57,11 +57,11 @@ export function RecoveryResultView({ trip, result, candidates, selectedId, disru
   const checks = constraintChecks(trip, result);
 
   return (
-    <Section id="result" kicker="05 · Result" tone="success"
-      title={<span className="flex items-center gap-4"><StatusMark status="done" size={44} label="Recovery feasible" />Journey repaired</span>}>
+    <Section id="result" kicker="05 · Your recommended option" tone="success"
+      title={<span className="flex items-center gap-4"><StatusMark status="done" size={44} label="Option available" />Your best travel option</span>}>
       <p className="max-w-2xl text-[17px] text-ink2">
-        <span className="text-ink">{result.changes} booking change{result.changes === 1 ? "" : "s"}</span> · extra cost <span className="text-ink">{formatMoney(result.extraCost, cur)}</span>
-        {arrival && <> · arrives <span className="text-ink">{hm(arrival)}</span></>}. Everything else stays as booked.
+        This option makes <span className="text-ink">{result.changes} change{result.changes === 1 ? "" : "s"}</span> to your journey · costs <span className="text-ink">{formatMoney(result.extraCost, cur)} extra</span>
+        {arrival && <> · arrives at <span className="text-ink">{hm(arrival)}</span></>}. Everything else stays as booked.
       </p>
       <RepairTimeline />
       <BorderGlow className="hidden rounded-[18px] border border-line bg-surface/60 p-5 shadow-l2 sm:block md:p-8">
@@ -75,13 +75,13 @@ export function RecoveryResultView({ trip, result, candidates, selectedId, disru
       <JourneyTimeline trip={trip} candidates={candidates} recommendedId={selectedId} disruption={disruption} />
       <div className="grid gap-10 lg:grid-cols-2">
         <div>
-          <h3 className={H3}>Why this recovery is valid</h3>
+          <h3 className={H3}>Does it fit your preferences?</h3>
           <ul className="mt-3 divide-y divide-line">
             {checks.map((x, i) => <SpringCheck key={x.k} ok={x.ok} label={x.label} detail={x.detail} delay={0.15 + i * 0.1} />)}
           </ul>
         </div>
         <div>
-          <h3 className={H3}>Recovery details</h3>
+          <h3 className={H3}>Why Sutra chose this</h3>
           <p className="mt-3 text-[17px] leading-relaxed text-ink2">{result.explanation}</p>
           <p className="mt-3 font-mono text-[12px] uppercase tracking-[0.12em] text-muted">Decision source: {result.decisionSource === "AI" ? "AI recommendation (post-validated)" : "Deterministic fallback"}</p>
           {!!result.tradeoffs?.length && <ul className="mt-3 space-y-1 text-[15px] text-ink2">{result.tradeoffs.map((tradeoff) => <li key={tradeoff}>• {tradeoff}</li>)}</ul>}
@@ -97,7 +97,7 @@ export function RecoveryResultView({ trip, result, candidates, selectedId, disru
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-[16px] text-ink">{action.description}</p>
-                    <p className="mt-1 font-mono text-[12px] uppercase tracking-[0.12em] text-muted">{action.kind.replaceAll("_", " ")} · booking/item: {action.itemId}</p>
+                    <p className="mt-1 text-[13px] text-muted">This is a suggested next step for your simulated journey.</p>
                   </div>
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-warn/40 bg-warn/10 px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.1em] text-warn">
                     <CircleUserRound aria-hidden className="size-3.5" />{action.automated ? "Automated" : "Traveller action required"}
@@ -120,10 +120,10 @@ export function NoFeasibleView({ result, candidates, trip, onRestart }: { result
   const byKind = new Map<string, { bookingId: string; message: string }[]>();
   result.violations.forEach(v => byKind.set(v.kind, [...(byKind.get(v.kind) ?? []), v]));
   return (
-    <Section id="result" kicker="05 · Result" tone="warn"
-      title={<span className="flex items-center gap-4"><CircleSlash aria-hidden className="size-10 text-warn" />No feasible recovery</span>}>
+    <Section id="result" kicker="05 · No matching option" tone="warn"
+      title={<span className="flex items-center gap-4"><CircleSlash aria-hidden className="size-10 text-warn" />No travel option fits yet</span>}>
       <div role="alert" className="sutra-card rounded-[18px] border border-warn/50 bg-elevated p-6 shadow-l2 md:p-8">
-        <p className="max-w-2xl text-[17px] text-ink">The traveller&rsquo;s constraints cannot all be met with the alternatives available. Sutra is not presenting any candidate as a recovery.</p>
+        <p className="max-w-2xl text-[17px] text-ink">No available option meets all of your current preferences, so Sutra is not recommending one.</p>
         <div className="mt-6 space-y-5">
           {[...byKind.entries()].map(([k, vs]) => (
             <div key={k}>
@@ -132,10 +132,10 @@ export function NoFeasibleView({ result, candidates, trip, onRestart }: { result
             </div>
           ))}
         </div>
-        <p className="mt-6 flex items-center gap-2 text-[15px] text-ink"><PhoneCall aria-hidden className="size-4 text-warn" />Next step: hand this journey to a human travel agent.</p>
+        <p className="mt-6 flex items-center gap-2 text-[15px] text-ink"><PhoneCall aria-hidden className="size-4 text-warn" />You can review your preferences or ask a travel agent to help. Changing a preference may reveal more options, but does not guarantee one.</p>
       </div>
       <div className="flex flex-wrap gap-3">
-        <Btn variant="neutral" onClick={() => document.getElementById("trip")?.scrollIntoView({ behavior: "smooth" })}><ArrowRight aria-hidden className="size-4" />Review constraints</Btn>
+        <Btn variant="neutral" onClick={() => document.getElementById("traveller-constraints-heading")?.scrollIntoView({ behavior: "smooth" })}><ArrowRight aria-hidden className="size-4" />Review my preferences</Btn>
         <Btn variant="ghost" onClick={onRestart}><RotateCcw aria-hidden className="size-4" />Start over</Btn>
       </div>
       <RecoveryComparison candidates={candidates} trip={trip}
