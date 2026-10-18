@@ -1,5 +1,5 @@
 import { scenarioById, supportedScenarios, tripById } from "@/lib/domain/fixtures/recovery-scenarios";
-import type { Alternative, CandidateDecisionAudit, ConnectionCheck, ConstraintEvaluation, ConstraintOverrides, ConstraintViolation, DecisionAudit, Disruption, GeneratedRecoveryCandidate, ImpactAnalysis, ImpactState, ItemTiming, JourneyCatalogueEntry, JourneyCatalogueItem, JourneyCatalogueResponse, RecoveryChange, RecoveryPlan, RecoveryRecommendation, RecoveryRunRequest, RecoveryRunResult, TravellerAction, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
+import type { Alternative, CandidateDecisionAudit, ConnectionCheck, ConstraintEvaluation, ConstraintOverrides, ConstraintViolation, DecisionAudit, Dependency, DependencyCheck, Disruption, GeneratedRecoveryCandidate, ImpactAnalysis, ImpactState, ItemTiming, JourneyCatalogueEntry, JourneyCatalogueItem, JourneyCatalogueResponse, RecoveryChange, RecoveryPlan, RecoveryRecommendation, RecoveryRunRequest, RecoveryRunResult, TravellerAction, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
 import { validateAiRecommendation, type RecommendationDraft } from "./recommendation";
 
 export class RecoveryInputError extends Error {
@@ -100,9 +100,9 @@ export function analyzeImpact(trip: Trip, disruption: Disruption): ImpactAnalysi
           if (gap < 0) reason = "Connection is missed after the delay.";
           else if (gap < (dependency.minimumBufferMinutes ?? 0)) reason = `Connection buffer falls to ${gap} min, below the required ${dependency.minimumBufferMinutes ?? 0} min.`;
         }
-      } else if (dependency.kind === "WINDOW") reason = "Expected arrival shifts later.";
-      else if (dependency.kind === "TEMPORAL") reason = "Upstream item no longer finishes as scheduled.";
-      else if (dependency.kind === "LOCATION") reason = "Required location is no longer reached as planned.";
+      } else if (dependency.kind === "WINDOW") reason = "Expected arrival may no longer meet the downstream time window.";
+      else if (dependency.kind === "TEMPORAL") reason = "Upstream timing may now overlap the downstream commitment.";
+      else if (dependency.kind === "LOCATION") continue;
       else reason = "Upstream connection is no longer reliable.";
       if (reason) { states[dependency.toItemId] = "AFFECTED"; reasons.push({ itemId: dependency.toItemId, reason }); queue.push(dependency.toItemId); }
     }
@@ -124,16 +124,44 @@ function candidateFor(trip: Trip, disruption: Disruption, impact: ImpactAnalysis
   const final = trip.items.filter((x) => x.kind === "transport").map((x) => ({ id: x.id, endAt: times[x.id]?.endAt })).filter((x): x is { id: string; endAt: string } => Boolean(x.endAt)).sort((a, b) => b.endAt.localeCompare(a.endAt))[0];
   return { id, alternatives: [alternative], impactStates: { ...impact.impactStates }, recoveryChanges, extraCost: alternative.extraCost, finalArrivalAt: final?.endAt ?? alternative.arrivalAt };
 }
-function connectionChecks(trip: Trip, timings: Record<string, ItemTiming | null>): ConnectionCheck[] {
-  return trip.dependencies.filter((dependency) => dependency.kind === "CONNECTION").map((dependency) => {
-    const predecessor = timings[dependency.fromItemId];
-    const successor = timings[dependency.toItemId];
-    const actualBufferMinutes = predecessor && successor ? minutes(successor.startAt) - minutes(predecessor.endAt) : null;
-    const minimumBufferMinutes = dependency.minimumBufferMinutes ?? 0;
-    return { dependencyId: `${dependency.fromItemId}->${dependency.toItemId}`, predecessorItemId: dependency.fromItemId, successorItemId: dependency.toItemId, predecessorArrivalAt: predecessor?.endAt ?? null, successorDepartureAt: successor?.startAt ?? null, actualBufferMinutes, minimumBufferMinutes, passed: actualBufferMinutes !== null && actualBufferMinutes >= minimumBufferMinutes };
+function itemLocations(trip: Trip, id: string) {
+  const item = trip.items.find((value) => value.id === id);
+  if (!item) return { start: null, end: null };
+  if (item.kind === "transport") return { start: item.legs[0]?.originLocationId ?? null, end: item.legs.at(-1)?.destinationLocationId ?? null };
+  return { start: item.locationId ?? null, end: item.locationId ?? null };
+}
+function validateDependency(dependency: Dependency) {
+  if (dependency.kind !== "WINDOW") return;
+  const window = dependency.arrivalWindow;
+  if (!window || !isLocalTimestamp(window.latestAt) || (window.earliestAt !== undefined && !isLocalTimestamp(window.earliestAt)) || (window.earliestAt && minutes(window.earliestAt) > minutes(window.latestAt))) throw new TechnicalFailure("INVALID_DEPENDENCY", `WINDOW dependency ${dependency.id} requires a valid arrival window with latestAt not before earliestAt.`);
+}
+export function evaluateDependencies(trip: Trip, timings: Record<string, ItemTiming | null>): DependencyCheck[] {
+  return trip.dependencies.map((dependency) => {
+    validateDependency(dependency);
+    const predecessor = timings[dependency.fromItemId], successor = timings[dependency.toItemId];
+    const base = { dependencyId: dependency.id, predecessorItemId: dependency.fromItemId, successorItemId: dependency.toItemId } as const;
+    if (dependency.kind === "CONNECTION") {
+      const actualBufferMinutes = predecessor && successor ? minutes(successor.startAt) - minutes(predecessor.endAt) : null;
+      const minimumBufferMinutes = dependency.minimumBufferMinutes ?? 0, passed = actualBufferMinutes !== null && actualBufferMinutes >= minimumBufferMinutes;
+      return { ...base, kind: "CONNECTION" as const, predecessorCompletionAt: predecessor?.endAt ?? null, successorStartAt: successor?.startAt ?? null, actualBufferMinutes, minimumBufferMinutes, passed, message: passed ? `Connection buffer is ${actualBufferMinutes} minutes.` : `Connection requires ${minimumBufferMinutes} minutes; actual buffer is ${actualBufferMinutes ?? "unavailable"}.` };
+    }
+    if (dependency.kind === "TEMPORAL") {
+      const passed = !!predecessor && !!successor && predecessor.endAt <= successor.startAt;
+      return { ...base, kind: "TEMPORAL" as const, predecessorCompletionAt: predecessor?.endAt ?? null, successorStartAt: successor?.startAt ?? null, passed, message: passed ? `${dependency.fromItemId} completes before ${dependency.toItemId} starts.` : `${dependency.fromItemId} completes at ${predecessor?.endAt ?? "an unavailable time"}, which is after or cannot be compared with ${dependency.toItemId} starting at ${successor?.startAt ?? "an unavailable time"}.` };
+    }
+    if (dependency.kind === "LOCATION") {
+      const from = itemLocations(trip, dependency.fromItemId), to = itemLocations(trip, dependency.toItemId), passed = from.end !== null && to.start !== null && from.end === to.start;
+      return { ...base, kind: "LOCATION" as const, predecessorLocationId: from.end, successorLocationId: to.start, passed, message: passed ? `Location continuity verified at ${from.end}.` : from.end === null || to.start === null ? "Location continuity could not be verified because a canonical location ID is missing." : `Location continuity fails: ${from.end} does not match ${to.start}.` };
+    }
+    const window = dependency.arrivalWindow!, completion = predecessor?.endAt ?? null;
+    const passed = completion !== null && (!window.earliestAt || completion >= window.earliestAt) && completion <= window.latestAt;
+    return { ...base, kind: "WINDOW" as const, predecessorCompletionAt: completion, earliestAt: window.earliestAt ?? null, latestAt: window.latestAt, passed, message: passed ? `Arrival ${completion} is within the required window.` : `Arrival ${completion ?? "is unavailable"} must be within ${window.earliestAt ?? "the beginning of time"} and ${window.latestAt}.` };
   });
 }
-function evaluations(trip: Trip, impact: ImpactAnalysis, candidate: GeneratedRecoveryCandidate, timings = repairedTimings(trip, impact, candidate), checks = connectionChecks(trip, timings)): ConstraintEvaluation[] {
+function connectionChecks(checks: DependencyCheck[]): ConnectionCheck[] {
+  return checks.filter((check): check is Extract<DependencyCheck, { kind: "CONNECTION" }> => check.kind === "CONNECTION").map((check) => ({ dependencyId: `${check.predecessorItemId}->${check.successorItemId}`, predecessorItemId: check.predecessorItemId, successorItemId: check.successorItemId, predecessorArrivalAt: check.predecessorCompletionAt, successorDepartureAt: check.successorStartAt, actualBufferMinutes: check.actualBufferMinutes, minimumBufferMinutes: check.minimumBufferMinutes, passed: check.passed }));
+}
+function evaluations(trip: Trip, impact: ImpactAnalysis, candidate: GeneratedRecoveryCandidate, timings = repairedTimings(trip, impact, candidate), checks = evaluateDependencies(trip, timings)): ConstraintEvaluation[] {
   const result: ConstraintEvaluation[] = [];
   const final = trip.items.filter((x) => x.kind === "transport").map((x) => ({ id: x.id, endAt: timings[x.id]?.endAt })).filter((x): x is { id: string; endAt: string } => Boolean(x.endAt)).sort((a, b) => b.endAt.localeCompare(a.endAt))[0];
   const focus = candidate.alternatives[0]?.replacementForBookingId ?? impact.disruptedItemIds[0];
@@ -148,23 +176,18 @@ function evaluations(trip: Trip, impact: ImpactAnalysis, candidate: GeneratedRec
     });
     add("NO_OVERNIGHT", overnight?.id ?? focus, !overnight, overnight ? "Recovery requires overnight travel while overnight travel is prohibited." : "No overnight travel is required.");
   }
-  for (const dep of trip.dependencies) {
-    if (dep.kind === "LOCATION") throw new TechnicalFailure("UNSUPPORTED_DEPENDENCY", "LOCATION dependencies are not evaluated in Round 1.");
-    if (dep.kind === "WINDOW") continue; // Existing golden hotel behavior is preserved; its public violation semantics remain unresolved.
-    const from = timings[dep.fromItemId], to = timings[dep.toItemId];
-    if (dep.kind === "CONNECTION") { const check = checks.find((value) => value.predecessorItemId === dep.fromItemId && value.successorItemId === dep.toItemId)!; add("CONNECTION", dep.toItemId, check.passed, `Connection ${dep.fromItemId} → ${dep.toItemId} has ${check.actualBufferMinutes ?? "unavailable"} minutes; requires ${check.minimumBufferMinutes} minutes.`); }
-    if (dep.kind === "TEMPORAL") add("CONNECTION", dep.toItemId, !!from && !!to && from.endAt <= to.startAt, `${dep.fromItemId} must complete before ${dep.toItemId}.`);
-  }
+  for (const check of checks) add(check.kind, check.successorItemId, check.passed, check.message);
   return result;
 }
-function validate(trip: Trip, impact: ImpactAnalysis, candidate: GeneratedRecoveryCandidate): ValidatedRecoveryCandidate { const times = repairedTimings(trip, impact, candidate); const checks = connectionChecks(trip, times); const violations = evaluations(trip, impact, candidate, times, checks).filter((x) => !x.passed).map(({ kind, itemId, message }) => ({ kind, itemId, message })); return { ...candidate, repairedTimings: times, connectionChecks: checks, feasible: !violations.length, violations }; }
+function validate(trip: Trip, impact: ImpactAnalysis, candidate: GeneratedRecoveryCandidate): ValidatedRecoveryCandidate { const times = repairedTimings(trip, impact, candidate); const dependencyChecks = evaluateDependencies(trip, times); const checks = connectionChecks(dependencyChecks); const violations = evaluations(trip, impact, candidate, times, dependencyChecks).filter((x) => !x.passed).map(({ kind, itemId, message }) => ({ kind, itemId, message })); return { ...candidate, repairedTimings: times, connectionChecks: checks, dependencyChecks, feasible: !violations.length, violations }; }
 function auditFor(runId: string, status: DecisionAudit["status"], source: DecisionAudit["decisionSource"], selectedCandidateId: string | null, constraints: Trip["constraints"], trip: Trip, impact: ImpactAnalysis, candidates: ValidatedRecoveryCandidate[]): DecisionAudit {
   const audited: CandidateDecisionAudit[] = candidates.map((candidate) => ({
     candidateId: candidate.id,
     feasible: candidate.feasible,
     finalArrivalAt: candidate.finalArrivalAt,
     extraCost: candidate.extraCost,
-    constraintChecks: evaluations(trip, impact, candidate, candidate.repairedTimings, candidate.connectionChecks),
+    constraintChecks: evaluations(trip, impact, candidate, candidate.repairedTimings, candidate.dependencyChecks),
+    dependencyChecks: candidate.dependencyChecks,
     violations: candidate.violations,
   }));
   return { runId, status, decisionSource: source, selectedCandidateId, effectiveConstraints: structuredClone(constraints), candidates: audited, noFeasibleReasons: audited.flatMap((candidate) => candidate.violations) };
@@ -172,7 +195,7 @@ function auditFor(runId: string, status: DecisionAudit["status"], source: Decisi
 function fallback(candidates: ValidatedRecoveryCandidate[]): RecoveryRecommendation { const best = [...candidates].filter((x) => x.feasible).sort((a, b) => a.extraCost - b.extraCost || a.finalArrivalAt.localeCompare(b.finalArrivalAt) || a.id.localeCompare(b.id))[0]; if (!best) throw new TechnicalFailure("NO_FEASIBLE", "No feasible candidates."); return { selectedCandidateId: best.id, decisionSource: "DETERMINISTIC_FALLBACK", reason: `${best.id} is the lowest-cost feasible recovery.` }; }
 function plan(trip: Trip, impact: ImpactAnalysis, candidate: ValidatedRecoveryCandidate): RecoveryPlan {
   const times = candidate.repairedTimings; const original = trip.items.filter((x) => x.kind === "transport").map((x) => timing(trip, x.id)).sort((a, b) => b.endAt.localeCompare(a.endAt))[0].endAt;
-  return { selectedCandidateId: candidate.id, items: trip.items.map((item) => ({ itemId: item.id, kind: item.kind, label: item.label, impactState: candidate.impactStates[item.id], recoveryChange: candidate.recoveryChanges[item.id], original: timing(trip, item.id), repaired: times[item.id], ...(candidate.alternatives.find((x) => x.replacementForBookingId === item.id) ? { replacedByAlternativeId: candidate.alternatives.find((x) => x.replacementForBookingId === item.id)!.id } : {}) })), extraCost: candidate.extraCost, originalFinalArrivalAt: original, repairedFinalArrivalAt: candidate.finalArrivalAt, arrivalDeltaMinutes: minutes(candidate.finalArrivalAt) - minutes(original), constraintResults: evaluations(trip, impact, candidate, times, candidate.connectionChecks) };
+  return { selectedCandidateId: candidate.id, items: trip.items.map((item) => ({ itemId: item.id, kind: item.kind, label: item.label, impactState: candidate.impactStates[item.id], recoveryChange: candidate.recoveryChanges[item.id], original: timing(trip, item.id), repaired: times[item.id], ...(candidate.alternatives.find((x) => x.replacementForBookingId === item.id) ? { replacedByAlternativeId: candidate.alternatives.find((x) => x.replacementForBookingId === item.id)!.id } : {}) })), extraCost: candidate.extraCost, originalFinalArrivalAt: original, repairedFinalArrivalAt: candidate.finalArrivalAt, arrivalDeltaMinutes: minutes(candidate.finalArrivalAt) - minutes(original), constraintResults: evaluations(trip, impact, candidate, times, candidate.dependencyChecks) };
 }
 function actions(planValue: RecoveryPlan, candidate: ValidatedRecoveryCandidate): TravellerAction[] { return candidate.alternatives.map((alternative, index) => ({ id: `ACT-${index + 1}`, kind: "BOOK_REPLACEMENT", itemId: alternative.replacementForBookingId, description: `Book simulated replacement ${alternative.id}.`, automated: false })); }
 export function parseRequest(body: unknown): RecoveryRunRequest {

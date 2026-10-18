@@ -7,6 +7,9 @@ const constraintLabel = (kind: string) => ({
   MAX_EXTRA_BUDGET: "Extra budget",
   NO_OVERNIGHT: "Overnight travel",
   CONNECTION: "Connection buffer",
+  TEMPORAL: "Timing/order conflict",
+  LOCATION: "Location continuity",
+  WINDOW: "Arrival window",
 }[kind] ?? kind);
 
 /** Renders the backend decision evidence without recalculating feasibility in React. */

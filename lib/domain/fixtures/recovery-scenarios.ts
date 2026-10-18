@@ -24,10 +24,18 @@ const technicalErrorDisruption: Disruption = { ...goldenDisruption, scenarioId: 
 const bengaluruTrip: Trip = {
   id: "trip-mangaluru-bengaluru-01", version: 1, currency: "INR",
   items: [
-    { id: "RAIL-C", kind: "transport", label: "Rail C", mode: "rail", legs: [{ id: "RAIL-C-LEG-1", bookingId: "RAIL-C", origin: "Mangaluru Central", destination: "Hassan Junction", departureAt: "2026-11-12T08:00:00", arrivalAt: "2026-11-12T12:00:00" }] },
-    { id: "RAIL-D", kind: "transport", label: "Rail D", mode: "rail", legs: [{ id: "RAIL-D-LEG-1", bookingId: "RAIL-D", origin: "Hassan Junction", destination: "Bengaluru City", departureAt: "2026-11-12T12:45:00", arrivalAt: "2026-11-12T16:00:00" }] },
+    { id: "RAIL-C", kind: "transport", label: "Rail C", mode: "rail", legs: [{ id: "RAIL-C-LEG-1", bookingId: "RAIL-C", origin: "Mangaluru Central", destination: "Hassan Junction", originLocationId: "station:mangaluru-central", destinationLocationId: "station:hassan-junction", departureAt: "2026-11-12T08:00:00", arrivalAt: "2026-11-12T12:00:00" }] },
+    { id: "RAIL-D", kind: "transport", label: "Rail D", mode: "rail", legs: [{ id: "RAIL-D-LEG-1", bookingId: "RAIL-D", origin: "Hassan Junction", destination: "Bengaluru City", originLocationId: "station:hassan-junction", destinationLocationId: "city:bengaluru", departureAt: "2026-11-12T12:45:00", arrivalAt: "2026-11-12T16:00:00" }] },
+    { id: "ACTIVITY-1", kind: "activity", label: "Bengaluru activity", location: "Bengaluru City", locationId: "city:bengaluru", startsAt: "2026-11-12T18:30:00", endsAt: "2026-11-12T20:00:00" },
+    { id: "HOTEL-2", kind: "accommodation", label: "Bengaluru Hotel", location: "Bengaluru City", locationId: "city:bengaluru", checkInAt: "2026-11-12T20:30:00", checkOutAt: "2026-11-13T10:00:00" },
   ],
-  dependencies: [{ id: "DEP-RAIL-C-RAIL-D", fromItemId: "RAIL-C", toItemId: "RAIL-D", kind: "CONNECTION", minimumBufferMinutes: 30 }],
+  dependencies: [
+    { id: "DEP-RAIL-C-RAIL-D", fromItemId: "RAIL-C", toItemId: "RAIL-D", kind: "CONNECTION", minimumBufferMinutes: 30 },
+    { id: "DEP-RAIL-C-RAIL-D-LOCATION", fromItemId: "RAIL-C", toItemId: "RAIL-D", kind: "LOCATION" },
+    { id: "DEP-RAIL-D-ACTIVITY-LOCATION", fromItemId: "RAIL-D", toItemId: "ACTIVITY-1", kind: "LOCATION" },
+    { id: "DEP-RAIL-D-ACTIVITY-WINDOW", fromItemId: "RAIL-D", toItemId: "ACTIVITY-1", kind: "WINDOW", arrivalWindow: { latestAt: "2026-11-12T18:00:00" } },
+    { id: "DEP-ACTIVITY-HOTEL-TEMPORAL", fromItemId: "ACTIVITY-1", toItemId: "HOTEL-2", kind: "TEMPORAL" },
+  ],
   constraints: { latestArrivalAt: "2026-11-12T19:00:00", maxExtraBudget: 400, noOvernight: true, softPreferences: ["EARLIER_ARRIVAL"] },
 };
 const bengaluruDisruption: Disruption = { source: "SIMULATED", scenarioId: "mangaluru-bengaluru-delay-01", bookingId: "RAIL-C", kind: "delay", delayMinutes: 90 };

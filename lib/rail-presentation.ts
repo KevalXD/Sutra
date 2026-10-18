@@ -57,9 +57,18 @@ function candidateItinerary(trip: Trip, candidate: ValidatedRecoveryCandidate) {
   });
 }
 const presentChecks = (candidate: ValidatedRecoveryCandidate): ConnectionCheck[] => candidate.connectionChecks.map((check) => ({ predecessorBookingId: check.predecessorItemId, successorBookingId: check.successorItemId, predecessorArrivalAt: check.predecessorArrivalAt, replacementDepartureAt: check.successorDepartureAt, actualBufferMinutes: check.actualBufferMinutes, minimumBufferMinutes: check.minimumBufferMinutes, passed: check.passed }));
+const violationKind = {
+  ARRIVAL_DEADLINE: "deadline",
+  MAX_EXTRA_BUDGET: "budget",
+  NO_OVERNIGHT: "overnight",
+  CONNECTION: "connection",
+  TEMPORAL: "temporal",
+  LOCATION: "location",
+  WINDOW: "window",
+} as const;
 export function presentCandidate(trip: Trip, candidate: ValidatedRecoveryCandidate): RecoveryCandidate {
   const itinerary = candidateItinerary(trip, candidate);
-  return { id: candidate.id, label: candidate.alternatives.map((alternative) => `Replace ${alternative.replacementForBookingId}`).join(", "), itinerary, changes: Object.values(candidate.recoveryChanges).filter((change) => change !== "UNCHANGED").length, extraCost: candidate.extraCost, violations: candidate.violations.map((violation) => ({ kind: violation.kind === "ARRIVAL_DEADLINE" ? "deadline" : violation.kind === "MAX_EXTRA_BUDGET" ? "budget" : violation.kind === "NO_OVERNIGHT" ? "overnight" : "connection", bookingId: violation.itemId, message: violation.message })), feasible: candidate.feasible, affectedBookingIds: Object.entries(candidate.impactStates).filter(([, state]) => state === "AFFECTED").map(([id]) => id), actions: [], connectionChecks: presentChecks(candidate), explanation: "", arrival: candidate.finalArrivalAt };
+  return { id: candidate.id, label: candidate.alternatives.map((alternative) => `Replace ${alternative.replacementForBookingId}`).join(", "), itinerary, changes: Object.values(candidate.recoveryChanges).filter((change) => change !== "UNCHANGED").length, extraCost: candidate.extraCost, violations: candidate.violations.map((violation) => ({ kind: violationKind[violation.kind], bookingId: violation.itemId, message: violation.message })), feasible: candidate.feasible, affectedBookingIds: Object.entries(candidate.impactStates).filter(([, state]) => state === "AFFECTED").map(([id]) => id), actions: [], connectionChecks: presentChecks(candidate), explanation: "", arrival: candidate.finalArrivalAt };
 }
 const presentActions = (actions: readonly { id: string; kind: TravellerAction["kind"]; itemId: string; description: string; automated: boolean }[]): TravellerAction[] => actions.map((action) => ({ ...action }));
 

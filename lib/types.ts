@@ -46,6 +46,9 @@ export interface Disruption {
 export type ViolationKind =
   | "route"
   | "connection"
+  | "temporal"
+  | "location"
+  | "window"
   | "hotel"
   | "overnight"
   | "deadline"
