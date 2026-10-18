@@ -35,6 +35,7 @@ export function RecoveryExplanation({ audit, currency }: { audit?: DecisionAudit
         {audit.status === "RECOVERED" ? <Check aria-hidden className="size-7 text-green-bright" /> : <CircleSlash aria-hidden className="size-7 text-warn" />}
       </div>
       <p className="mt-3 text-[15px] text-ink2">Evaluated with the backend-applied constraints: <span className="font-mono text-[13px] text-ink">{constraintSummary}</span>.</p>
+      {audit.appliedPriority && <p className="mt-2 text-[14px] text-ink2">Applied recovery priority: <span className="font-medium text-ink">{audit.appliedPriority === "LOWER_COST" ? "Lower additional cost" : "Earlier arrival"}</span>.</p>}
       <p className="mt-2 font-mono text-[12px] uppercase tracking-[0.1em] text-muted">Source: {source}{selected ? ` · selected ${selected.candidateId}` : ""}</p>
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {audit.candidates.map((candidate) => (

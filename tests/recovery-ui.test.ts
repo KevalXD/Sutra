@@ -172,6 +172,10 @@ test("traveller constraints form exposes editable, labelled controls and recalcu
   assert.match(html, /Latest acceptable arrival/);
   assert.match(html, /Maximum additional budget/);
   assert.match(html, /No overnight travel/);
+  assert.match(html, /Recovery priority/);
+  assert.match(html, /Lower additional cost/);
+  assert.match(html, /Earlier arrival/);
+  assert.match(html, /Arrival, budget, connection and overnight constraints still apply/);
   assert.match(html, /Recalculate Recovery/);
   assert.match(html, /Restore original constraints/);
 });

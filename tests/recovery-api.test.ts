@@ -146,6 +146,37 @@ test("constraint override input rejects malformed timestamps, budgets, booleans,
   for (const constraintOverrides of invalid) assert.equal((await recoveryRunOutcome({ ...request(), constraintOverrides })).status, 400);
 });
 
+test("explicit traveller priorities rank only feasible candidates and are recorded in the audit", async () => {
+  const lowerCost = await recoveryRunOutcome({ ...request(), constraintOverrides: { priority: "LOWER_COST" } });
+  const earlierArrival = await recoveryRunOutcome({ ...request(), constraintOverrides: { priority: "EARLIER_ARRIVAL" } });
+  for (const [response, priority, selectedCandidateId] of [[lowerCost, "LOWER_COST", "RC-B"], [earlierArrival, "EARLIER_ARRIVAL", "RC-A"]] as const) {
+    assert.equal(response.status, 200);
+    const body = response.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>;
+    assert.equal(body.recommendation.selectedCandidateId, selectedCandidateId);
+    assert.equal(body.recommendation.decisionSource, "DETERMINISTIC_FALLBACK");
+    assert.equal(body.decisionAudit.appliedPriority, priority);
+  }
+  // The established no-override fallback remains cost-first.
+  const legacy = await recoveryRunOutcome(request());
+  assert.equal((legacy.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>).recommendation.selectedCandidateId, "RC-B");
+  assert.equal((legacy.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>).decisionAudit.appliedPriority, undefined);
+});
+
+test("priority cannot make a deadline-violating cheaper candidate feasible", async () => {
+  const response = await recoveryRunOutcome({ ...request(), constraintOverrides: { latestArrivalAt: "2026-11-10T18:00:00", priority: "LOWER_COST" } });
+  assert.equal(response.status, 200);
+  const body = response.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>;
+  assert.equal(body.recommendation.selectedCandidateId, "RC-A");
+  assert.equal(body.candidates.find((candidate) => candidate.id === "RC-B")?.feasible, false);
+  assert.ok(body.candidates.find((candidate) => candidate.id === "RC-B")?.violations.some((violation) => violation.kind === "ARRIVAL_DEADLINE"));
+});
+
+test("priority rejects unsupported values using the structured request error", async () => {
+  const response = await recoveryRunOutcome({ ...request(), constraintOverrides: { priority: "FASTEST" } });
+  assert.equal(response.status, 400);
+  assert.equal((response.body as { error: { code: string } }).error.code, "INVALID_REQUEST");
+});
+
 test("golden delay exposes validator-derived disrupted timing and connection facts", async () => {
   const response = await recoveryRunOutcome(request());
   const body = response.body as unknown as { candidates: { id: string; repairedTimings: Record<string, { endAt: string } | null>; connectionChecks: { predecessorArrivalAt: string; successorDepartureAt: string; actualBufferMinutes: number; minimumBufferMinutes: number; passed: boolean }[]; recoveryChanges: Record<string, string>; impactStates: Record<string, string> }[] };

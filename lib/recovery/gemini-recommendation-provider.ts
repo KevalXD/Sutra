@@ -25,10 +25,10 @@ export class GeminiRecommendationProvider {
       },
     });
   }
-  async recommend(input: { trip: Trip; impact: ImpactAnalysis; feasibleCandidates: ValidatedRecoveryCandidate[] }): Promise<RecommendationDraft> {
+  async recommend(input: { trip: Trip; impact: ImpactAnalysis; feasibleCandidates: ValidatedRecoveryCandidate[]; activePriority?: import("@/lib/domain/types").RecoveryPriority }): Promise<RecommendationDraft> {
     let response: GeminiResponse;
     try {
-      response = await this.client.models.generateContent({ model: this.options.model, contents: `Choose only from the supplied feasible recovery candidates. Return structured facts exactly as supplied. Do not claim booking, purchase, availability, or feasibility.\n${JSON.stringify(recommendationContext(input.trip, input.impact, input.feasibleCandidates))}`, config: { responseMimeType: "application/json", responseJsonSchema: recommendationJsonSchema } });
+      response = await this.client.models.generateContent({ model: this.options.model, contents: `Choose only from the supplied feasible recovery candidates. If activePriority is supplied, select its deterministic best candidate. Return structured facts exactly as supplied. Do not claim booking, purchase, availability, or feasibility.\n${JSON.stringify(recommendationContext(input.trip, input.impact, input.feasibleCandidates, input.activePriority))}`, config: { responseMimeType: "application/json", responseJsonSchema: recommendationJsonSchema } });
     } catch (error) {
       const status = typeof (error as { status?: unknown })?.status === "number" ? (error as { status: number }).status : undefined;
       throw new RecommendationProviderError("PROVIDER_API_ERROR", "Gemini request failed.", status);

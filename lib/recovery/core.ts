@@ -1,5 +1,5 @@
 import { scenarioById, supportedScenarios, tripById } from "@/lib/domain/fixtures/recovery-scenarios";
-import type { Alternative, CandidateDecisionAudit, ConnectionCheck, ConstraintEvaluation, ConstraintOverrides, ConstraintViolation, DecisionAudit, Dependency, DependencyCheck, Disruption, GeneratedRecoveryCandidate, ImpactAnalysis, ImpactState, ItemTiming, JourneyCatalogueEntry, JourneyCatalogueItem, JourneyCatalogueResponse, RecoveryChange, RecoveryPlan, RecoveryRecommendation, RecoveryRunRequest, RecoveryRunResult, TravellerAction, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
+import type { Alternative, CandidateDecisionAudit, ConnectionCheck, ConstraintEvaluation, ConstraintOverrides, ConstraintViolation, DecisionAudit, Dependency, DependencyCheck, Disruption, GeneratedRecoveryCandidate, ImpactAnalysis, ImpactState, ItemTiming, JourneyCatalogueEntry, JourneyCatalogueItem, JourneyCatalogueResponse, RecoveryChange, RecoveryPlan, RecoveryPriority, RecoveryRecommendation, RecoveryRunRequest, RecoveryRunResult, TravellerAction, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
 import { validateAiRecommendation, type RecommendationDraft } from "./recommendation";
 
 export class RecoveryInputError extends Error {
@@ -15,7 +15,7 @@ export type RecommendationDiagnostic = {
   rejection?: string;
 };
 export interface RecommendationProvider {
-  recommend(context: { trip: Trip; impact: ImpactAnalysis; feasibleCandidates: ValidatedRecoveryCandidate[] }): Promise<RecommendationDraft>;
+  recommend(context: { trip: Trip; impact: ImpactAnalysis; feasibleCandidates: ValidatedRecoveryCandidate[]; activePriority?: RecoveryPriority }): Promise<RecommendationDraft>;
 }
 export interface RecoveryDeps {
   recommender?: RecommendationProvider;
@@ -39,11 +39,12 @@ function parseOverrides(value: unknown): ConstraintOverrides | undefined {
   if (value === undefined) return undefined;
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new RecoveryInputError("INVALID_REQUEST", "constraintOverrides must be an object.");
   const overrides = value as Record<string, unknown>;
-  const allowed = ["latestArrivalAt", "maxExtraBudget", "noOvernight"];
+  const allowed = ["latestArrivalAt", "maxExtraBudget", "noOvernight", "priority"];
   if (Object.keys(overrides).some((key) => !allowed.includes(key))) throw new RecoveryInputError("INVALID_REQUEST", "constraintOverrides contains an unknown field.");
   if (overrides.latestArrivalAt !== undefined && !isLocalTimestamp(overrides.latestArrivalAt)) throw new RecoveryInputError("INVALID_REQUEST", "latestArrivalAt must be a valid local timestamp (YYYY-MM-DDTHH:mm:ss).");
   if (overrides.maxExtraBudget !== undefined && (typeof overrides.maxExtraBudget !== "number" || !Number.isFinite(overrides.maxExtraBudget) || overrides.maxExtraBudget < 0 || overrides.maxExtraBudget > MAX_EXTRA_BUDGET)) throw new RecoveryInputError("INVALID_REQUEST", `maxExtraBudget must be a finite amount from 0 to ${MAX_EXTRA_BUDGET}.`);
   if (overrides.noOvernight !== undefined && typeof overrides.noOvernight !== "boolean") throw new RecoveryInputError("INVALID_REQUEST", "noOvernight must be a boolean.");
+  if (overrides.priority !== undefined && overrides.priority !== "LOWER_COST" && overrides.priority !== "EARLIER_ARRIVAL") throw new RecoveryInputError("INVALID_REQUEST", "priority must be LOWER_COST or EARLIER_ARRIVAL.");
   return overrides as ConstraintOverrides;
 }
 
@@ -180,7 +181,7 @@ function evaluations(trip: Trip, impact: ImpactAnalysis, candidate: GeneratedRec
   return result;
 }
 function validate(trip: Trip, impact: ImpactAnalysis, candidate: GeneratedRecoveryCandidate): ValidatedRecoveryCandidate { const times = repairedTimings(trip, impact, candidate); const dependencyChecks = evaluateDependencies(trip, times); const checks = connectionChecks(dependencyChecks); const violations = evaluations(trip, impact, candidate, times, dependencyChecks).filter((x) => !x.passed).map(({ kind, itemId, message }) => ({ kind, itemId, message })); return { ...candidate, repairedTimings: times, connectionChecks: checks, dependencyChecks, feasible: !violations.length, violations }; }
-function auditFor(runId: string, status: DecisionAudit["status"], source: DecisionAudit["decisionSource"], selectedCandidateId: string | null, constraints: Trip["constraints"], trip: Trip, impact: ImpactAnalysis, candidates: ValidatedRecoveryCandidate[]): DecisionAudit {
+function auditFor(runId: string, status: DecisionAudit["status"], source: DecisionAudit["decisionSource"], selectedCandidateId: string | null, constraints: Trip["constraints"], trip: Trip, impact: ImpactAnalysis, candidates: ValidatedRecoveryCandidate[], appliedPriority?: RecoveryPriority): DecisionAudit {
   const audited: CandidateDecisionAudit[] = candidates.map((candidate) => ({
     candidateId: candidate.id,
     feasible: candidate.feasible,
@@ -190,9 +191,14 @@ function auditFor(runId: string, status: DecisionAudit["status"], source: Decisi
     dependencyChecks: candidate.dependencyChecks,
     violations: candidate.violations,
   }));
-  return { runId, status, decisionSource: source, selectedCandidateId, effectiveConstraints: structuredClone(constraints), candidates: audited, noFeasibleReasons: audited.flatMap((candidate) => candidate.violations) };
+  return { runId, status, decisionSource: source, selectedCandidateId, effectiveConstraints: structuredClone(constraints), ...(appliedPriority ? { appliedPriority } : {}), candidates: audited, noFeasibleReasons: audited.flatMap((candidate) => candidate.violations) };
 }
-function fallback(candidates: ValidatedRecoveryCandidate[]): RecoveryRecommendation { const best = [...candidates].filter((x) => x.feasible).sort((a, b) => a.extraCost - b.extraCost || a.finalArrivalAt.localeCompare(b.finalArrivalAt) || a.id.localeCompare(b.id))[0]; if (!best) throw new TechnicalFailure("NO_FEASIBLE", "No feasible candidates."); return { selectedCandidateId: best.id, decisionSource: "DETERMINISTIC_FALLBACK", reason: `${best.id} is the lowest-cost feasible recovery.` }; }
+function rankedCandidates(candidates: ValidatedRecoveryCandidate[], priority?: RecoveryPriority) {
+  return [...candidates].filter((candidate) => candidate.feasible).sort((a, b) => priority === "EARLIER_ARRIVAL"
+    ? a.finalArrivalAt.localeCompare(b.finalArrivalAt) || a.extraCost - b.extraCost || a.id.localeCompare(b.id)
+    : a.extraCost - b.extraCost || a.finalArrivalAt.localeCompare(b.finalArrivalAt) || a.id.localeCompare(b.id));
+}
+function fallback(candidates: ValidatedRecoveryCandidate[], priority?: RecoveryPriority): RecoveryRecommendation { const best = rankedCandidates(candidates, priority)[0]; if (!best) throw new TechnicalFailure("NO_FEASIBLE", "No feasible candidates."); return { selectedCandidateId: best.id, decisionSource: "DETERMINISTIC_FALLBACK", reason: `${best.id} is the ${priority === "EARLIER_ARRIVAL" ? "earliest-arriving" : "lowest-cost"} feasible recovery.` }; }
 function plan(trip: Trip, impact: ImpactAnalysis, candidate: ValidatedRecoveryCandidate): RecoveryPlan {
   const times = candidate.repairedTimings; const original = trip.items.filter((x) => x.kind === "transport").map((x) => timing(trip, x.id)).sort((a, b) => b.endAt.localeCompare(a.endAt))[0].endAt;
   return { selectedCandidateId: candidate.id, items: trip.items.map((item) => ({ itemId: item.id, kind: item.kind, label: item.label, impactState: candidate.impactStates[item.id], recoveryChange: candidate.recoveryChanges[item.id], original: timing(trip, item.id), repaired: times[item.id], ...(candidate.alternatives.find((x) => x.replacementForBookingId === item.id) ? { replacedByAlternativeId: candidate.alternatives.find((x) => x.replacementForBookingId === item.id)!.id } : {}) })), extraCost: candidate.extraCost, originalFinalArrivalAt: original, repairedFinalArrivalAt: candidate.finalArrivalAt, arrivalDeltaMinutes: minutes(candidate.finalArrivalAt) - minutes(original), constraintResults: evaluations(trip, impact, candidate, times, candidate.dependencyChecks) };
@@ -261,7 +267,9 @@ function assertSupportedDisruption(scenario: NonNullable<ReturnType<typeof scena
 }
 export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDeps = {}): Promise<RecoveryRunResult> {
   const baselineTrip = await getTrip(request.tripId); if (!baselineTrip) throw new RecoveryInputError("TRIP_NOT_FOUND", `Trip ${request.tripId} was not found.`); if (baselineTrip.version !== request.tripVersion) throw new RecoveryInputError("STALE_TRIP_VERSION", `Trip is at version ${baselineTrip.version}.`);
-  const trip: Trip = { ...baselineTrip, constraints: { ...baselineTrip.constraints, ...request.constraintOverrides } };
+  const { priority, ...hardConstraintOverrides } = request.constraintOverrides ?? {};
+  // An explicit priority is scoped to this calculation; legacy requests use the fixture unchanged.
+  const trip: Trip = { ...baselineTrip, constraints: { ...baselineTrip.constraints, ...hardConstraintOverrides } };
   const scenario = scenarioById(request.disruption.scenarioId);
   if (!scenario) throw new RecoveryInputError("DOMAIN_REJECTED", "The selected disruption profile is not supported.");
   assertSupportedDisruption(scenario, trip, request.disruption);
@@ -273,14 +281,14 @@ export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDep
   }
   catch (error) { throw error instanceof TechnicalFailure ? error : new TechnicalFailure("TRANSPORT_ADAPTER_FAILED", error instanceof Error ? error.message : "Transport adapter failed."); }
   const candidates = alternatives.map((x) => candidateFor(trip, request.disruption, impact, x)).map((x) => validate(trip, impact, x)); const runId = `run-${request.disruption.scenarioId}-v${trip.version}`; const base = { runId, tripVersion: trip.version, impact, candidates, effectiveConstraints: structuredClone(trip.constraints) };
-  if (!candidates.some((x) => x.feasible)) return { ...base, status: "NO_FEASIBLE_RECOVERY", recommendation: null, recoveryPlan: null, actions: [], decisionAudit: auditFor(runId, "NO_FEASIBLE_RECOVERY", "NONE", null, trip.constraints, trip, impact, candidates) };
+  if (!candidates.some((x) => x.feasible)) return { ...base, status: "NO_FEASIBLE_RECOVERY", recommendation: null, recoveryPlan: null, actions: [], decisionAudit: auditFor(runId, "NO_FEASIBLE_RECOVERY", "NONE", null, trip.constraints, trip, impact, candidates, priority) };
   const feasible = candidates.filter((candidate) => candidate.feasible);
   let recommendation: RecoveryRecommendation | undefined;
   if (deps.recommender) {
     try {
       const timeoutMs = deps.recommendationTimeoutMs ?? AI_RECOMMENDATION_BUDGET_MS;
-      const draft = await recommendWithinBudget(deps.recommender, { trip, impact, feasibleCandidates: feasible }, timeoutMs);
-      const validated = validateAiRecommendation(trip, feasible, draft);
+      const draft = await recommendWithinBudget(deps.recommender, { trip, impact, feasibleCandidates: feasible, activePriority: priority }, timeoutMs);
+      const validated = validateAiRecommendation(trip, feasible, draft, priority);
       recommendation = validated.recommendation;
       if (!recommendation) deps.onRecommendationDiagnostic?.({ category: "POST_VALIDATION_REJECTED", rejection: validated.rejection });
     } catch (error) {
@@ -288,6 +296,6 @@ export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDep
       else deps.onRecommendationDiagnostic?.({ category: "PROVIDER_FAILURE" });
     }
   }
-  recommendation ??= fallback(candidates); const selected = candidates.find((x) => x.id === recommendation.selectedCandidateId)!; const recoveryPlan = plan(trip, impact, selected);
-  return { ...base, status: "RECOVERED", recommendation, recoveryPlan, actions: actions(recoveryPlan, selected), decisionAudit: auditFor(runId, "RECOVERED", recommendation.decisionSource, recommendation.selectedCandidateId, trip.constraints, trip, impact, candidates) };
+  recommendation ??= fallback(candidates, priority); const selected = candidates.find((x) => x.id === recommendation.selectedCandidateId)!; const recoveryPlan = plan(trip, impact, selected);
+  return { ...base, status: "RECOVERED", recommendation, recoveryPlan, actions: actions(recoveryPlan, selected), decisionAudit: auditFor(runId, "RECOVERED", recommendation.decisionSource, recommendation.selectedCandidateId, trip.constraints, trip, impact, candidates, priority) };
 }

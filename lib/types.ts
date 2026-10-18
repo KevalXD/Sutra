@@ -30,6 +30,7 @@ export interface ConstraintOverrides {
   latestArrivalAt?: string;
   maxExtraBudget?: number;
   noOvernight?: boolean;
+  priority?: "LOWER_COST" | "EARLIER_ARRIVAL";
 }
 export interface Itinerary {
   id: string;
