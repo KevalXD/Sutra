@@ -22,8 +22,8 @@ export function shiftIso(iso: string, min: number): string {
 }
 
 export const violationLabel: Record<ViolationKind, string> = {
-  route: "Route continuity", connection: "Minimum connection (60 min)", hotel: "Hotel check-in",
-  overnight: "No overnight (23:00–05:00)", deadline: "Arrival deadline", budget: "Extra budget",
+  route: "Route continuity", connection: "Connection buffer", temporal: "Timing/order conflict", location: "Location continuity", window: "Arrival window", hotel: "Hotel check-in",
+  overnight: "No overnight travel", deadline: "Arrival deadline", budget: "Extra budget",
 };
 
 /** Presentation diff of a booking vs the original itinerary. */

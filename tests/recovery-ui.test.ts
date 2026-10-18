@@ -4,9 +4,10 @@ import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { demoScenarioFor } from "@/lib/domain/fixtures/recovery-scenarios";
 import { goldenDisruption, goldenTrip } from "@/lib/domain/fixtures/golden-rail-delay-01";
-import { runRecovery } from "@/lib/recovery/core";
-import { presentRun, presentTrip } from "@/lib/rail-presentation";
+import { getTrip as canonicalTrip, runRecovery } from "@/lib/recovery/core";
+import { presentCandidate, presentRun, presentTrip } from "@/lib/rail-presentation";
 import { getTrip, runScenario } from "@/lib/api";
+import { violationLabel } from "@/lib/format";
 
 const noop = async () => true;
 // The application uses Next's automatic JSX runtime; tsx's Node test transform
@@ -59,6 +60,30 @@ test("frontend renders the backend decision audit explanation", async () => {
   assert.match(html, /selected RC-B/);
   assert.match(html, /RC-D/);
   assert.match(html, /Arrival deadline/);
+});
+
+test("presentation preserves temporal, location, and window violation identities and labels", async () => {
+  const trip = await canonicalTrip("trip-mangaluru-bengaluru-01");
+  assert.ok(trip);
+  if (!trip) return;
+  const run = await runRecovery({ tripId: trip.id, tripVersion: trip.version, disruption: { source: "SIMULATED", scenarioId: "mangaluru-bengaluru-delay-01", bookingId: "RAIL-C", kind: "delay", delayMinutes: 30 } });
+  assert.equal(run.status, "RECOVERED");
+  if (run.status !== "RECOVERED") return;
+  const candidate = structuredClone(run.candidates[0]);
+  candidate.violations = [
+    { kind: "TEMPORAL", itemId: "HOTEL-2", message: "temporal" },
+    { kind: "LOCATION", itemId: "ACTIVITY-1", message: "location" },
+    { kind: "WINDOW", itemId: "ACTIVITY-1", message: "window" },
+  ];
+  const projected = presentCandidate(trip, candidate);
+  assert.deepEqual(projected.violations.map((violation) => violation.kind), ["temporal", "location", "window"]);
+  assert.deepEqual(projected.violations.map((violation) => violationLabel[violation.kind]), ["Timing/order conflict", "Location continuity", "Arrival window"]);
+
+  const { RecoveryExplanation } = await import("@/components/sutra/recovery-explanation");
+  const html = renderToStaticMarkup(createElement(RecoveryExplanation, { audit: run.decisionAudit, currency: trip.currency }));
+  assert.match(html, /Timing\/order conflict/);
+  assert.match(html, /Location continuity/);
+  assert.match(html, /Arrival window/);
 });
 
 test("frontend renders API-returned traveller actions as pending traveller work", async () => {
