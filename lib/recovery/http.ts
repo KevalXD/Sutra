@@ -9,7 +9,8 @@ export async function recoveryRunOutcome(body: unknown, deps?: RecoveryDeps) {
     }
     const code = error instanceof TechnicalFailure ? error.code : "INTERNAL_ERROR";
     console.error("[recovery] technical failure", error);
-    return { status: 500, body: { status: "TECHNICAL_ERROR", error: { code, message: "Recovery could not be calculated. Please retry." } } };
+    const message = error instanceof Error ? error.message : "Recovery could not be calculated.";
+    return { status: 500, body: { status: "TECHNICAL_ERROR", error: { code, message: "Recovery could not be calculated. Please retry." }, decisionAudit: { runId: "unavailable", status: "TECHNICAL_ERROR", decisionSource: "NONE", selectedCandidateId: null, effectiveConstraints: null, candidates: [], noFeasibleReasons: [], technicalError: { code, message } } } };
   }
 }
 

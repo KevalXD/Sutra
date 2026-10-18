@@ -170,9 +170,10 @@ export interface DecisionAudit {
   status: RecoveryStatus;
   decisionSource: DecisionAuditSource;
   selectedCandidateId: string | null;
-  effectiveConstraints: ConstraintSet;
+  effectiveConstraints: ConstraintSet | null;
   candidates: CandidateDecisionAudit[];
   noFeasibleReasons: ConstraintViolation[];
+  technicalError?: { code: string; message: string };
 }
 
 export interface ItemTiming { startAt: string; endAt: string }

@@ -23,6 +23,8 @@ const H3 = "font-display text-[clamp(1.5rem,2.6vw,2.25rem)] font-semibold";
 
 /** Each line is derived from `result.violations` and the repaired itinerary — nothing is asserted that the data does not show. */
 function constraintChecks(trip: Itinerary, result: RecoveryResult) {
+  const audited = result.audit?.candidates.find((candidate) => candidate.candidateId === result.audit?.selectedCandidateId);
+  if (audited) return audited.constraintChecks.map((check, index) => ({ k: `${check.kind}-${index}`, ok: check.passed, label: check.passed ? `${check.kind} satisfied` : `${check.kind} violated`, detail: check.message }));
   const c = trip.constraints, cur = trip.currency;
   const legs = result.itinerary.filter(b => b.kind === "flight" || b.kind === "train");
   const arrival = legs[legs.length - 1]?.end;

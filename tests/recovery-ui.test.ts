@@ -47,6 +47,20 @@ test("frontend labels a post-validated AI recommendation and renders backend-der
   assert.match(html, /RC-A arrives 45 minutes earlier than RC-B/);
 });
 
+test("frontend renders the backend decision audit explanation", async () => {
+  const run = await runRecovery({ tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: goldenDisruption });
+  assert.equal(run.status, "RECOVERED");
+  if (run.status !== "RECOVERED") return;
+  const { RecoveryExplanation } = await import("@/components/sutra/recovery-explanation");
+  const projected = presentRun(goldenTrip, run);
+  const html = renderToStaticMarkup(createElement(RecoveryExplanation, { audit: projected.audit, currency: goldenTrip.currency }));
+  assert.match(html, /Decision audit/);
+  assert.match(html, /Deterministic fallback/);
+  assert.match(html, /selected RC-B/);
+  assert.match(html, /RC-D/);
+  assert.match(html, /Arrival deadline/);
+});
+
 test("frontend renders API-returned traveller actions as pending traveller work", async () => {
   const run = await runRecovery({ tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: goldenDisruption });
   assert.equal(run.status, "RECOVERED");

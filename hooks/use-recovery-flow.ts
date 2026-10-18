@@ -24,6 +24,7 @@ export function useRecoveryFlow(scenario: ScenarioId) {
   const [stage, setStage] = useState(0);
   const [error, setError] = useState<ApiError>();
   const recoveryRequestInFlight = useRef(false);
+  const requestGeneration = useRef(0);
   // Number of user-initiated reloads. Deterministic: StrictMode double-effects reuse the same value.
   const [retries, setRetries] = useState(0);
 
@@ -34,11 +35,12 @@ export function useRecoveryFlow(scenario: ScenarioId) {
 
   useEffect(() => {
     let alive = true;
+    const generation = ++requestGeneration.current;
     setPhase("IDLE"); setError(undefined); setAnalysis(undefined); setResult(undefined); setEffectiveConstraints(undefined);
     setCandidates([]); setSelectedId(undefined); setStage(0);
     getTrip(scenario, retries)
-      .then(trip => { if (alive) { setTrip(trip); setPhase("TRIP_LOADED"); } })
-      .catch(e => { if (alive) fail(e); });
+      .then(trip => { if (alive && generation === requestGeneration.current) { setTrip(trip); setPhase("TRIP_LOADED"); } })
+      .catch(e => { if (alive && generation === requestGeneration.current) fail(e); });
     return () => { alive = false; };
   }, [scenario, retries]);
 
@@ -47,22 +49,26 @@ export function useRecoveryFlow(scenario: ScenarioId) {
   const simulateDisruption = async () => {
     if (recoveryRequestInFlight.current) return;
     recoveryRequestInFlight.current = true;
+    const generation = requestGeneration.current;
     try {
       const run = await runScenario(scenario, retries);
+      if (generation !== requestGeneration.current) return;
       setTrip(run.effectiveTrip); setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result); setEffectiveConstraints(run.effectiveConstraints);
       setPhase("DISRUPTION_DETECTED");
-    } catch (e) { fail(e); }
+    } catch (e) { if (generation === requestGeneration.current) fail(e); }
     finally { recoveryRequestInFlight.current = false; }
   };
   const retryRecovery = async () => {
     if (recoveryRequestInFlight.current) return;
     recoveryRequestInFlight.current = true;
+    const generation = requestGeneration.current;
     try {
       setError(undefined);
       const run = await runScenario(scenario, retries + 1);
+      if (generation !== requestGeneration.current) return;
       setTrip(run.effectiveTrip); setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result); setEffectiveConstraints(run.effectiveConstraints);
       setPhase(run.result.feasible ? "RECOVERY_READY" : "NO_FEASIBLE_RECOVERY");
-    } catch (e) { fail(e); }
+    } catch (e) { if (generation === requestGeneration.current) fail(e); }
     finally { recoveryRequestInFlight.current = false; }
   };
   const analyzeImpact = () => setPhase("IMPACT_ANALYSIS");
@@ -82,13 +88,15 @@ export function useRecoveryFlow(scenario: ScenarioId) {
   const recalculateRecovery = async (constraintOverrides: ConstraintOverrides): Promise<boolean> => {
     if (recoveryRequestInFlight.current) return false;
     recoveryRequestInFlight.current = true;
+    const generation = requestGeneration.current;
     setPhase("RECOVERY_ANALYSIS"); setStage(0); setError(undefined);
     try {
       const run = await runScenario(scenario, retries, constraintOverrides);
+      if (generation !== requestGeneration.current) return false;
       setTrip(run.effectiveTrip); setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result); setEffectiveConstraints(run.effectiveConstraints);
       setPhase(run.result.feasible ? "RECOVERY_READY" : "NO_FEASIBLE_RECOVERY");
       return true;
-    } catch (e) { fail(e); return false; }
+    } catch (e) { if (generation === requestGeneration.current) fail(e); return false; }
     finally { recoveryRequestInFlight.current = false; }
   };
 
