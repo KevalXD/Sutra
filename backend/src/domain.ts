@@ -48,7 +48,8 @@ export function validateCandidate(candidate: RecoveryCandidate, trip: Trip): Rec
   const resolveItem = (id: string) => replacementByBookingId.get(id) ?? candidate.itinerary.find(item => item.id === id);
   const replacedIds = new Set(candidate.alternatives.map(alternative => alternative.replacementForBookingId));
   for (const id of originalIds) {
-    if (!replacedIds.has(id) && !candidateIds.has(id)) violations.push(violation("IDENTITY", id, "Unaffected itinerary item was not preserved."));
+    const change = candidate.recoveryChanges[id];
+    if (!replacedIds.has(id) && !candidateIds.has(id) && change !== "CANCELLED" && change !== "REPLACED") violations.push(violation("IDENTITY", id, "Unaffected itinerary item was not preserved."));
   }
   const legs = transportLegs(candidate.itinerary);
   for (const leg of legs) {
@@ -64,6 +65,8 @@ export function validateCandidate(candidate: RecoveryCandidate, trip: Trip): Rec
   for (const dependency of trip.dependencies) {
     const from = resolveItem(dependency.fromItemId);
     const to = resolveItem(dependency.toItemId);
+    // A dependency is no longer applicable when either original booking was explicitly cancelled by the repair.
+    if (candidate.recoveryChanges[dependency.fromItemId] === "CANCELLED" || candidate.recoveryChanges[dependency.toItemId] === "CANCELLED") continue;
     if (dependency.kind === "CONNECTION" && from?.kind === "transport" && to?.kind === "transport") {
       const a = from.legs.at(-1), b = to.legs[0];
       if (!a || !b || ms(b.departureAt) - ms(a.arrivalAt) < (dependency.minimumBufferMinutes ?? 0) * 60000) {
