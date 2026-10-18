@@ -63,9 +63,10 @@ export function presentCandidate(trip: Trip, candidate: ValidatedRecoveryCandida
 }
 const presentActions = (actions: readonly { id: string; kind: TravellerAction["kind"]; itemId: string; description: string; automated: boolean }[]): TravellerAction[] => actions.map((action) => ({ ...action }));
 
-export function presentRun(trip: Trip, run: RecoveryRunResult): { result: RecoveryResult; selectedId?: string; candidates: RecoveryCandidate[] } {
+export function presentRun(trip: Trip, run: RecoveryRunResult): { result: RecoveryResult; selectedId?: string; candidates: RecoveryCandidate[]; effectiveTrip: Itinerary } {
+  const effectiveTrip = presentTrip({ ...trip, constraints: run.effectiveConstraints });
   const candidates = run.candidates.map((candidate) => presentCandidate(trip, candidate)); const violations = candidates.flatMap((candidate) => candidate.violations);
-  if (run.status === "NO_FEASIBLE_RECOVERY") return { candidates, result: { feasible: false, itinerary: [], changes: 0, extraCost: 0, violations, explanation: "No feasible repair exists within the available candidate set.", affectedBookingIds: run.impact.affectedItemIds, actions: [] } };
+  if (run.status === "NO_FEASIBLE_RECOVERY") return { effectiveTrip, candidates, result: { feasible: false, itinerary: [], changes: 0, extraCost: 0, violations, explanation: "No feasible repair exists within the available candidate set.", affectedBookingIds: run.impact.affectedItemIds, actions: [] } };
   const selected = candidates.find((candidate) => candidate.id === run.recommendation.selectedCandidateId)!;
-  return { candidates, selectedId: selected.id, result: { feasible: true, itinerary: selected.itinerary, changes: selected.changes, extraCost: selected.extraCost, violations: [], actions: presentActions(run.actions), connectionChecks: selected.connectionChecks, explanation: run.recommendation.reason, decisionSource: run.recommendation.decisionSource, tradeoffs: run.recommendation.tradeoffs, affectedBookingIds: run.impact.affectedItemIds } };
+  return { effectiveTrip, candidates, selectedId: selected.id, result: { feasible: true, itinerary: selected.itinerary, changes: selected.changes, extraCost: selected.extraCost, violations: [], actions: presentActions(run.actions), connectionChecks: selected.connectionChecks, explanation: run.recommendation.reason, decisionSource: run.recommendation.decisionSource, tradeoffs: run.recommendation.tradeoffs, affectedBookingIds: run.impact.affectedItemIds } };
 }

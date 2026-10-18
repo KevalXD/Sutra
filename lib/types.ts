@@ -3,6 +3,7 @@ export type BookingKind = "flight" | "train" | "hotel" | "activity";
 export interface Booking { id: string; kind: BookingKind; origin: string; dest: string; start: string; end: string; cost?: number; refundRate?: number; originalStart?: string; originalEnd?: string; impactState?: "UNCHANGED" | "DISRUPTED" | "AFFECTED"; recoveryChange?: "UNCHANGED" | "CHANGED" | "REPLACED" | "CANCELLED" }
 export interface TravelGoal { label: string; city: string; arriveBy: string; stayUntil?: string }
 export interface Constraints { home: string; maxExtraBudget: number; noOvernight?: boolean; mustBeAt?: TravelGoal[] }
+export interface ConstraintOverrides { latestArrivalAt?: string; maxExtraBudget?: number; noOvernight?: boolean }
 export interface Itinerary { id: string; currency: string; bookings: Booking[]; constraints: Constraints }
 export type DisruptionKind = "delay" | "cancel";
 export interface Disruption { bookingId: string; kind: DisruptionKind; delayMin?: number }

@@ -8,7 +8,7 @@ import { runRecovery } from "@/lib/recovery/core";
 import { presentRun, presentTrip } from "@/lib/rail-presentation";
 import { getTrip, runScenario } from "@/lib/api";
 
-const noop = () => {};
+const noop = async () => true;
 // The application uses Next's automatic JSX runtime; tsx's Node test transform
 // uses the classic runtime, so expose React before loading the client components.
 (globalThis as typeof globalThis & { React?: typeof React }).React = React;
@@ -107,4 +107,69 @@ test("frontend renders a technical error distinctly with a retry action", async 
   const html = renderToStaticMarkup(createElement(TechnicalErrorView, { error: { code: "RECOVERY_SERVICE_UNAVAILABLE", message: "Recovery could not be calculated. Please retry." }, onRetry: noop }));
   assert.match(html, /system problem, not a recovery result/i);
   assert.match(html, /Retry/);
+});
+
+test("traveller constraints form exposes editable, labelled controls and recalculation actions", async () => {
+  const { TravellerConstraints } = await import("@/components/sutra/traveller-constraints");
+  const html = renderToStaticMarkup(createElement(TravellerConstraints, { trip: presentTrip(goldenTrip), defaults: presentTrip(goldenTrip), effectiveConstraints: goldenTrip.constraints, busy: false, onRecalculate: noop }));
+  assert.match(html, /Constraints for this recovery/);
+  assert.match(html, /Latest acceptable arrival/);
+  assert.match(html, /Maximum additional budget/);
+  assert.match(html, /No overnight travel/);
+  assert.match(html, /Recalculate Recovery/);
+  assert.match(html, /Restore original constraints/);
+});
+
+test("traveller constraints status follows the latest successful recovery response", async () => {
+  const { TravellerConstraints } = await import("@/components/sutra/traveller-constraints");
+  const originalFetch = globalThis.fetch;
+  const initialRun = await runRecovery({ tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: goldenDisruption });
+  const overriddenRun = await runRecovery({
+    tripId: goldenTrip.id,
+    tripVersion: goldenTrip.version,
+    disruption: goldenDisruption,
+    constraintOverrides: { latestArrivalAt: "2026-11-10T20:00:00", maxExtraBudget: 300, noOvernight: true },
+  });
+  assert.equal(initialRun.status, "RECOVERED");
+  assert.equal(overriddenRun.status, "RECOVERED");
+  const responses = [initialRun, overriddenRun];
+  globalThis.fetch = (async () => new Response(JSON.stringify(responses.shift()), { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
+  try {
+    const initial = await runScenario("delay", 0);
+    const initialHtml = renderToStaticMarkup(createElement(TravellerConstraints, {
+      trip: initial.effectiveTrip, defaults: presentTrip(goldenTrip), effectiveConstraints: initial.effectiveConstraints, busy: false, onRecalculate: noop,
+    }));
+    assert.match(initialHtml, /arrival 2026-11-10 19:00 · budget ₹500 · no overnight/);
+
+    const updated = await runScenario("delay", 0, { latestArrivalAt: "2026-11-10T20:00:00", maxExtraBudget: 300, noOvernight: true });
+    const updatedHtml = renderToStaticMarkup(createElement(TravellerConstraints, {
+      trip: updated.effectiveTrip, defaults: presentTrip(goldenTrip), effectiveConstraints: updated.effectiveConstraints, busy: false, onRecalculate: noop,
+    }));
+    assert.match(updatedHtml, /arrival 2026-11-10 20:00 · budget ₹300 · no overnight/);
+    assert.doesNotMatch(updatedHtml, /arrival 2026-11-10 19:00 · budget ₹500/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("traveller constraints show the latest backend values when recovery is infeasible", async () => {
+  const { TravellerConstraints } = await import("@/components/sutra/traveller-constraints");
+  const originalFetch = globalThis.fetch;
+  const noFeasibleRun = await runRecovery({
+    tripId: goldenTrip.id,
+    tripVersion: goldenTrip.version,
+    disruption: goldenDisruption,
+    constraintOverrides: { latestArrivalAt: "2026-11-10T19:00:00", maxExtraBudget: 300, noOvernight: true },
+  });
+  assert.equal(noFeasibleRun.status, "NO_FEASIBLE_RECOVERY");
+  globalThis.fetch = (async () => new Response(JSON.stringify(noFeasibleRun), { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
+  try {
+    const updated = await runScenario("delay", 0, { latestArrivalAt: "2026-11-10T19:00:00", maxExtraBudget: 300, noOvernight: true });
+    const html = renderToStaticMarkup(createElement(TravellerConstraints, {
+      trip: updated.effectiveTrip, defaults: presentTrip(goldenTrip), effectiveConstraints: updated.effectiveConstraints, busy: false, onRecalculate: noop,
+    }));
+    assert.match(html, /arrival 2026-11-10 19:00 · budget ₹300 · no overnight/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

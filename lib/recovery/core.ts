@@ -1,5 +1,5 @@
 import { scenarioById, tripById } from "@/lib/domain/fixtures/recovery-scenarios";
-import type { Alternative, ConnectionCheck, ConstraintEvaluation, ConstraintViolation, Disruption, GeneratedRecoveryCandidate, ImpactAnalysis, ImpactState, ItemTiming, RecoveryChange, RecoveryPlan, RecoveryRecommendation, RecoveryRunRequest, RecoveryRunResult, TravellerAction, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
+import type { Alternative, ConnectionCheck, ConstraintEvaluation, ConstraintOverrides, ConstraintViolation, Disruption, GeneratedRecoveryCandidate, ImpactAnalysis, ImpactState, ItemTiming, RecoveryChange, RecoveryPlan, RecoveryRecommendation, RecoveryRunRequest, RecoveryRunResult, TravellerAction, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
 import { validateAiRecommendation, type RecommendationDraft } from "./recommendation";
 
 export class RecoveryInputError extends Error {
@@ -27,6 +27,25 @@ export interface RecoveryDeps {
 
 /** The interactive route never waits longer than this for an optional AI recommendation. */
 export const AI_RECOMMENDATION_BUDGET_MS = 10_000;
+/** Demo guardrail: values beyond this are almost certainly an accidental input. */
+export const MAX_EXTRA_BUDGET = 100_000;
+
+function isLocalTimestamp(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)) return false;
+  const instant = new Date(`${value}Z`);
+  return Number.isFinite(instant.getTime()) && instant.toISOString().slice(0, 19) === value;
+}
+function parseOverrides(value: unknown): ConstraintOverrides | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new RecoveryInputError("INVALID_REQUEST", "constraintOverrides must be an object.");
+  const overrides = value as Record<string, unknown>;
+  const allowed = ["latestArrivalAt", "maxExtraBudget", "noOvernight"];
+  if (Object.keys(overrides).some((key) => !allowed.includes(key))) throw new RecoveryInputError("INVALID_REQUEST", "constraintOverrides contains an unknown field.");
+  if (overrides.latestArrivalAt !== undefined && !isLocalTimestamp(overrides.latestArrivalAt)) throw new RecoveryInputError("INVALID_REQUEST", "latestArrivalAt must be a valid local timestamp (YYYY-MM-DDTHH:mm:ss).");
+  if (overrides.maxExtraBudget !== undefined && (typeof overrides.maxExtraBudget !== "number" || !Number.isFinite(overrides.maxExtraBudget) || overrides.maxExtraBudget < 0 || overrides.maxExtraBudget > MAX_EXTRA_BUDGET)) throw new RecoveryInputError("INVALID_REQUEST", `maxExtraBudget must be a finite amount from 0 to ${MAX_EXTRA_BUDGET}.`);
+  if (overrides.noOvernight !== undefined && typeof overrides.noOvernight !== "boolean") throw new RecoveryInputError("INVALID_REQUEST", "noOvernight must be a boolean.");
+  return overrides as ConstraintOverrides;
+}
 
 async function recommendWithinBudget(provider: RecommendationProvider, context: Parameters<RecommendationProvider["recommend"]>[0], timeoutMs: number) {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -150,14 +169,16 @@ export function parseRequest(body: unknown): RecoveryRunRequest {
   if (!value || typeof value.tripId !== "string" || !Number.isInteger(value.tripVersion) || !disruption || disruption.source !== "SIMULATED" || typeof disruption.scenarioId !== "string" || typeof disruption.bookingId !== "string" || (disruption.kind !== "delay" && disruption.kind !== "cancellation")) throw new RecoveryInputError("INVALID_REQUEST", "Invalid recovery-run request.");
   if (disruption.delayMinutes !== undefined && (!Number.isInteger(disruption.delayMinutes) || (disruption.kind === "delay" && (disruption.delayMinutes as number) <= 0))) throw new RecoveryInputError("INVALID_REQUEST", "Invalid delayMinutes.");
   if (value.demoAttempt !== undefined && (!Number.isInteger(value.demoAttempt) || (value.demoAttempt as number) < 0)) throw new RecoveryInputError("INVALID_REQUEST", "Invalid demoAttempt.");
-  return { tripId: value.tripId, tripVersion: value.tripVersion as number, disruption: disruption as unknown as Disruption, ...(value.demoAttempt === undefined ? {} : { demoAttempt: value.demoAttempt as number }) };
+  const constraintOverrides = parseOverrides(value.constraintOverrides);
+  return { tripId: value.tripId, tripVersion: value.tripVersion as number, disruption: disruption as unknown as Disruption, ...(value.demoAttempt === undefined ? {} : { demoAttempt: value.demoAttempt as number }), ...(constraintOverrides === undefined ? {} : { constraintOverrides }) };
 }
 export async function getTrip(tripId: string) {
   const trip = tripById(tripId);
   return trip ? structuredClone(trip) : null;
 }
 export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDeps = {}): Promise<RecoveryRunResult> {
-  const trip = await getTrip(request.tripId); if (!trip) throw new RecoveryInputError("TRIP_NOT_FOUND", `Trip ${request.tripId} was not found.`); if (trip.version !== request.tripVersion) throw new RecoveryInputError("STALE_TRIP_VERSION", `Trip is at version ${trip.version}.`);
+  const baselineTrip = await getTrip(request.tripId); if (!baselineTrip) throw new RecoveryInputError("TRIP_NOT_FOUND", `Trip ${request.tripId} was not found.`); if (baselineTrip.version !== request.tripVersion) throw new RecoveryInputError("STALE_TRIP_VERSION", `Trip is at version ${baselineTrip.version}.`);
+  const trip: Trip = { ...baselineTrip, constraints: { ...baselineTrip.constraints, ...request.constraintOverrides } };
   const scenario = scenarioById(request.disruption.scenarioId);
   if (!scenario || scenario.trip.id !== trip.id || scenario.disruption.bookingId !== request.disruption.bookingId || scenario.disruption.kind !== request.disruption.kind || scenario.disruption.delayMinutes !== request.disruption.delayMinutes) {
     throw new RecoveryInputError("DOMAIN_REJECTED", "The simulated disruption does not match a supported deterministic scenario.");
@@ -169,7 +190,7 @@ export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDep
     alternatives = deps.findAlternatives ? await deps.findAlternatives({ trip, disruption: request.disruption, impact }) : structuredClone(scenario.alternatives);
   }
   catch (error) { throw error instanceof TechnicalFailure ? error : new TechnicalFailure("TRANSPORT_ADAPTER_FAILED", error instanceof Error ? error.message : "Transport adapter failed."); }
-  const candidates = alternatives.map((x) => candidateFor(trip, request.disruption, impact, x)).map((x) => validate(trip, impact, x)); const base = { runId: `run-${request.disruption.scenarioId}-v${trip.version}`, tripVersion: trip.version, impact, candidates };
+  const candidates = alternatives.map((x) => candidateFor(trip, request.disruption, impact, x)).map((x) => validate(trip, impact, x)); const base = { runId: `run-${request.disruption.scenarioId}-v${trip.version}`, tripVersion: trip.version, impact, candidates, effectiveConstraints: structuredClone(trip.constraints) };
   if (!candidates.some((x) => x.feasible)) return { ...base, status: "NO_FEASIBLE_RECOVERY", recommendation: null, recoveryPlan: null, actions: [] };
   const feasible = candidates.filter((candidate) => candidate.feasible);
   let recommendation: RecoveryRecommendation | undefined;

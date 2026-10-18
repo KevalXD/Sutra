@@ -24,6 +24,40 @@ test("root recovery endpoint runs the real canonical pipeline", async () => {
   assert.deepEqual(body.actions, [{ id: "ACT-1", kind: "BOOK_REPLACEMENT", itemId: "RAIL-B", description: "Book simulated replacement RC-B-ALT.", automated: false }]);
 });
 
+test("constraint overrides are independently validated and select RC-C through deterministic fallback", async () => {
+  const response = await recoveryRunOutcome({ ...request(), constraintOverrides: { latestArrivalAt: "2026-11-10T20:00:00", maxExtraBudget: 300, noOvernight: true } });
+  assert.equal(response.status, 200);
+  const body = response.body as { status: string; effectiveConstraints: { latestArrivalAt: string; maxExtraBudget: number; noOvernight: boolean }; recommendation: { selectedCandidateId: string; decisionSource: string } | null; candidates: { id: string; feasible: boolean; violations: { kind: string }[] }[] };
+  assert.equal(body.status, "RECOVERED");
+  assert.deepEqual(body.effectiveConstraints, { ...goldenTrip.constraints, latestArrivalAt: "2026-11-10T20:00:00", maxExtraBudget: 300, noOvernight: true });
+  assert.deepEqual(body.candidates.filter((candidate) => candidate.feasible).map((candidate) => candidate.id), ["RC-C"]);
+  assert.equal(body.recommendation?.selectedCandidateId, "RC-C");
+  assert.equal(body.recommendation?.decisionSource, "DETERMINISTIC_FALLBACK");
+  assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-D")?.violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT"]);
+});
+
+test("strict constraints return no recovery with backend-derived reasons and do not mutate the fixture", async () => {
+  const baseline = structuredClone(goldenTrip.constraints);
+  const response = await recoveryRunOutcome({ ...request(), constraintOverrides: { latestArrivalAt: "2026-11-10T19:00:00", maxExtraBudget: 300, noOvernight: true } });
+  assert.equal(response.status, 200);
+  const body = response.body as { status: string; recommendation: unknown; recoveryPlan: unknown; candidates: { id: string; violations: { kind: string }[] }[] };
+  assert.equal(body.status, "NO_FEASIBLE_RECOVERY");
+  assert.equal(body.recommendation, null); assert.equal(body.recoveryPlan, null);
+  assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-A")?.violations.map((violation) => violation.kind), ["MAX_EXTRA_BUDGET"]);
+  assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-C")?.violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE"]);
+  assert.deepEqual(goldenTrip.constraints, baseline);
+  const repeat = await recoveryRunOutcome(request());
+  assert.deepEqual((repeat.body as { effectiveConstraints: unknown }).effectiveConstraints, baseline);
+});
+
+test("constraint override input rejects malformed timestamps, budgets, booleans, and unknown fields", async () => {
+  const invalid = [
+    { maxExtraBudget: -1 }, { maxExtraBudget: "300" }, { latestArrivalAt: "not-a-date" },
+    { latestArrivalAt: "2026-02-30T19:00:00" }, { noOvernight: "true" }, { unexpected: true }, null,
+  ];
+  for (const constraintOverrides of invalid) assert.equal((await recoveryRunOutcome({ ...request(), constraintOverrides })).status, 400);
+});
+
 test("golden delay exposes validator-derived disrupted timing and connection facts", async () => {
   const response = await recoveryRunOutcome(request());
   const body = response.body as unknown as { candidates: { id: string; repairedTimings: Record<string, { endAt: string } | null>; connectionChecks: { predecessorArrivalAt: string; successorDepartureAt: string; actualBufferMinutes: number; minimumBufferMinutes: number; passed: boolean }[]; recoveryChanges: Record<string, string>; impactStates: Record<string, string> }[] };

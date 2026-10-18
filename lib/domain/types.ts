@@ -97,6 +97,12 @@ export interface ConstraintSet {
   noOvernight: boolean;
   softPreferences?: SoftPreference[];
 }
+/** Optional per-run values. They never alter the stored trip fixture. */
+export interface ConstraintOverrides {
+  latestArrivalAt?: string;
+  maxExtraBudget?: number;
+  noOvernight?: boolean;
+}
 
 export interface Dependency {
   id: string;
@@ -203,8 +209,8 @@ export interface TravellerAction {
   itemId: string; description: string; automated: false;
 }
 /** `demoAttempt` only controls the pre-defined transient demo outage retry. */
-export interface RecoveryRunRequest { tripId: string; tripVersion: number; disruption: Disruption; demoAttempt?: number }
-interface RecoveryRunBase { runId: string; tripVersion: number; impact: ImpactAnalysis; candidates: ValidatedRecoveryCandidate[] }
+export interface RecoveryRunRequest { tripId: string; tripVersion: number; disruption: Disruption; demoAttempt?: number; constraintOverrides?: ConstraintOverrides }
+interface RecoveryRunBase { runId: string; tripVersion: number; impact: ImpactAnalysis; candidates: ValidatedRecoveryCandidate[]; effectiveConstraints: ConstraintSet }
 export interface RecoveredRun extends RecoveryRunBase {
   status: "RECOVERED"; recommendation: RecoveryRecommendation; recoveryPlan: RecoveryPlan; actions: TravellerAction[];
 }
