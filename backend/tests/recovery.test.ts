@@ -10,7 +10,10 @@ test("hard constraints reject deadline, overnight and budget violations", async 
 test("cancellation is processed and preserves unaffected bookings", async () => { const r = await runRecovery("run-4", goldenTrip, goldenCancellation, goldenCandidates(goldenTrip, goldenCancellation)); assert.equal(r.status, "RECOVERED"); assert.equal(r.recoveryPlan?.originalItinerary.find(i => i.id === "rail-b")?.id, "rail-b"); });
 test("all infeasible candidates produce a terminal no-feasible result", async () => { const candidates = goldenCandidates(goldenTrip, goldenDisruption).map(c => ({ ...c, extraCost: 900, finalArrivalAt: "2026-10-11T21:00:00+05:30" })); const r = await runRecovery("run-5", goldenTrip, goldenDisruption, candidates); assert.equal(r.status, "NO_FEASIBLE_RECOVERY"); assert.equal(r.recommendation, null); });
 test("unknown AI candidate cannot be selected", async () => { const r = await runRecovery("run-6", goldenTrip, goldenDisruption, goldenCandidates(goldenTrip, goldenDisruption), { rank: async () => ({ candidateId: "UNKNOWN", reason: "bad", tradeoffs: [] }) }); assert.equal(r.recommendation?.decisionSource, "DETERMINISTIC_FALLBACK"); assert.equal(r.recommendation?.selectedCandidateId, "RC-B"); });
-test("invalid connection is rejected independently", () => { const c = goldenCandidates(goldenTrip, goldenDisruption)[0]; c.itinerary.push(structuredClone(goldenTrip.items[0])); const trip = structuredClone(goldenTrip); trip.dependencies[0].minimumBufferMinutes = 999; const checked = validateCandidate(c, trip); assert.equal(checked.feasible, false); assert.ok(checked.violations.some(v => v.kind === "CONNECTION")); });
+test("invalid connection is rejected independently", () => { const c = goldenCandidates(goldenTrip, goldenDisruption)[0];
+  c.itinerary.push(structuredClone(goldenTrip.items.find(item => item.id === "rail-b")!));
+  c.recoveryChanges["rail-b"] = "UNCHANGED";
+  const trip = structuredClone(goldenTrip); trip.dependencies[0].minimumBufferMinutes = 999; const checked = validateCandidate(c, trip); assert.equal(checked.feasible, false); assert.ok(checked.violations.some(v => v.kind === "CONNECTION")); });
 
 test("impact analysis propagates across the rail connection to the hotel", () => {
   const impact = analyzeImpact(goldenTrip, goldenDisruption);
