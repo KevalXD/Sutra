@@ -3,6 +3,7 @@ import test from "node:test";
 import { goldenDisruption, goldenTrip } from "@/lib/domain/fixtures/golden-rail-delay-01";
 import { cancellationNoRecoveryScenario, demoScenarioFor } from "@/lib/domain/fixtures/recovery-scenarios";
 import { recoveryRunOutcome, tripOutcome } from "@/lib/recovery/http";
+import type { RecoveryRunResult } from "@/lib/domain/types";
 
 const request = () => ({ tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: goldenDisruption });
 
@@ -26,7 +27,7 @@ test("root recovery endpoint runs the real canonical pipeline", async () => {
 
 test("recovery responses include a backend-authored decision audit for every candidate", async () => {
   const response = await recoveryRunOutcome(request());
-  const body = response.body as typeof import("@/lib/domain/types").RecoveredRun;
+  const body = response.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>;
   assert.equal(body.decisionAudit.status, "RECOVERED");
   assert.equal(body.decisionAudit.selectedCandidateId, body.recommendation.selectedCandidateId);
   assert.equal(body.decisionAudit.decisionSource, body.recommendation.decisionSource);
@@ -63,7 +64,7 @@ test("strict constraints return no recovery with backend-derived reasons and do 
 
 test("no-feasible responses keep the audit source empty and expose blocking reasons", async () => {
   const response = await recoveryRunOutcome({ ...request(), constraintOverrides: { latestArrivalAt: "2026-11-10T19:00:00", maxExtraBudget: 300, noOvernight: true } });
-  const body = response.body as typeof import("@/lib/domain/types").NoFeasibleRun;
+  const body = response.body as Extract<RecoveryRunResult, { status: "NO_FEASIBLE_RECOVERY" }>;
   assert.equal(body.decisionAudit.status, "NO_FEASIBLE_RECOVERY");
   assert.equal(body.decisionAudit.decisionSource, "NONE");
   assert.equal(body.decisionAudit.selectedCandidateId, null);
