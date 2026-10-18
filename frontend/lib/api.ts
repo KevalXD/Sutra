@@ -67,13 +67,12 @@ function candidateToUi(candidate: Record<string, unknown>, original: Itinerary):
 
 export const getTrip = async (scenario: ScenarioId, attempt: number) => { void scenario; void attempt; return tripToUi(await call<LiveTrip>("/v1/trips/" + TRIP_ID, { code: "ITINERARY_LOAD_FAILED", message: "The live journey could not be loaded." })); };
 export const postDisruption = async (scenario: ScenarioId): Promise<DisruptionAnalysis> => {
-  void scenario;
-  const data = await call<LiveDisruptionAnalysis>("/v1/trips/" + TRIP_ID + "/disruptions", { code: "INVALID_DISRUPTION", message: "No live disruption could be loaded." });
+  const data = await call<LiveDisruptionAnalysis>("/v1/trips/" + TRIP_ID + "/disruptions?scenario=" + encodeURIComponent(scenario), { code: "INVALID_DISRUPTION", message: "No live disruption could be loaded." });
   if (!data.disruption) throw new SutraApiError({ code: "NO_LIVE_DISRUPTION", message: "No live disruption is currently available for this journey." });
   return { disruption: data.disruption as Disruption, affectedBookingIds: data.affectedBookingIds, impact: data.impact.map(step => ({ bookingId: String(step.itemId ?? ""), reason: "connection", text: String(step.text ?? step.reason ?? "") })) };
 };
-export const postRecovery = async (trip: Itinerary, disruption?: Disruption) => {
-  const live = await call<LiveRecovery>("/v1/recovery-runs", { code: "RECOVERY_SERVICE_UNAVAILABLE", message: "Live recovery could not be calculated." }, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tripId: trip.id, tripVersion: trip.version ?? 1, disruption }) });
+export const postRecovery = async (trip: Itinerary, disruption?: Disruption, scenario: ScenarioId = "delay") => {
+  const live = await call<LiveRecovery>("/v1/recovery-runs", { code: "RECOVERY_SERVICE_UNAVAILABLE", message: "Live recovery could not be calculated." }, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tripId: trip.id, tripVersion: trip.version ?? 1, disruption: disruption ? { ...disruption, source: "SIMULATED", scenarioId: scenario } : undefined }) });
   const candidates = live.candidates.map(candidate => candidateToUi(candidate, trip));
   const plan = live.recoveryPlan as Record<string, unknown> | null;
   const result: RecoveryResult = plan ? { feasible: live.status === "RECOVERED", itinerary: candidates.find(c => c.id === live.recommendation?.selectedCandidateId)?.itinerary ?? trip.bookings, changes: Object.values((plan.changes ?? {}) as Record<string, unknown>).filter(value => value !== "UNCHANGED").length, extraCost: Number(plan.extraCost ?? 0), violations: [], explanation: live.recommendation?.reason ?? "Live recovery completed.", affectedBookingIds: [] } : { feasible: false, itinerary: [], changes: 0, extraCost: 0, violations: candidates.flatMap(c => c.violations), explanation: "No feasible live recovery exists.", affectedBookingIds: [] };
