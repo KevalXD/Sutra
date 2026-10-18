@@ -45,7 +45,23 @@ function tripToUi(trip: LiveTrip): Itinerary {
 function candidateToUi(candidate: Record<string, unknown>, original: Itinerary): RecoveryCandidate {
   const violations = Array.isArray(candidate.violations) ? candidate.violations as Array<Record<string, unknown>> : [];
   const items = Array.isArray(candidate.itinerary) ? candidate.itinerary.map(item => itemToBooking(item as Record<string, unknown>)) : original.bookings;
-  const toViolationKind = (kind: string): ViolationKind => ({ ARRIVAL_DEADLINE: "deadline", MAX_EXTRA_BUDGET: "budget", NO_OVERNIGHT: "overnight", CONNECTION: "connection", CHRONOLOGY: "hotel", IDENTITY: "route" }[kind] ?? ([("route"), ("connection"), ("hotel"), ("overnight"), ("deadline"), ("budget")] as string[]).includes(kind) ? kind as ViolationKind : "route");
+  const toViolationKind = (kind: string): ViolationKind => {
+    const mapping: Record<string, ViolationKind> = {
+      ARRIVAL_DEADLINE: "deadline",
+      MAX_EXTRA_BUDGET: "budget",
+      NO_OVERNIGHT: "overnight",
+      CONNECTION: "connection",
+      CHRONOLOGY: "hotel",
+      IDENTITY: "route",
+      deadline: "deadline",
+      budget: "budget",
+      overnight: "overnight",
+      connection: "connection",
+      hotel: "hotel",
+      route: "route",
+    };
+    return mapping[kind] ?? "route";
+  }
   return { id: String(candidate.id), label: String(candidate.label ?? ("Provider recovery " + String(candidate.id))), itinerary: items, changes: Object.values((candidate.recoveryChanges ?? {}) as Record<string, unknown>).filter(value => value !== "UNCHANGED").length, extraCost: Number(candidate.extraCost ?? 0), feasible: Boolean(candidate.feasible), violations: violations.map(v => ({ kind: toViolationKind(String(v.kind)), bookingId: String(v.itemId), message: String(v.message) })), affectedBookingIds: [], explanation: "", arrival: String(candidate.finalArrivalAt ?? "") };
 }
 
