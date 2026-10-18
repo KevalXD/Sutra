@@ -49,7 +49,14 @@ const server = http.createServer(async (req, res) => {
     const disruptionMatch = url.pathname.match(/^\/v1\/trips\/([^/]+)\/disruptions$/);
     if (req.method === "GET" && disruptionMatch) {
       const trip = await provider.getTrip(disruptionMatch[1]);
-      const disruption = await provider.getDisruption(trip);
+      const scenario = url.searchParams.get("scenario") ?? "delay";
+      if (scenario === "error" && config.DATA_MODE !== "live") return send(res, 503, { error: { code: "SIMULATED_TECHNICAL_ERROR", message: "A simulated recovery-provider failure was requested for this demo scenario." } });
+      const requested: Disruption | undefined = scenario === "cancellation"
+        ? { source: "SIMULATED", scenarioId: "cancellation", bookingId: trip.items[0].id, kind: "cancellation" }
+        : scenario === "infeasible"
+          ? { source: "SIMULATED", scenarioId: "infeasible", bookingId: trip.items[0].id, kind: "delay", delayMinutes: 120 }
+          : { source: "SIMULATED", scenarioId: "delay", bookingId: trip.items[0].id, kind: "delay", delayMinutes: 120 };
+      const disruption = await provider.getDisruption(trip, requested);
       const impact = analyzeImpact(trip, disruption);
       return send(res, 200, { disruption: { bookingId: disruption.bookingId, kind: disruption.kind === "cancellation" ? "cancel" : "delay", delayMin: disruption.delayMinutes }, affectedBookingIds: [...impact.disruptedItemIds, ...impact.affectedItemIds], impact: impact.reasons });
     }

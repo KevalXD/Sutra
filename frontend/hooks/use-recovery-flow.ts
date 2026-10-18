@@ -49,7 +49,7 @@ export function useRecoveryFlow(scenario: ScenarioId) {
     setPhase("RECOVERY_ANALYSIS"); setStage(0);
     try {
       if (!trip) throw new Error("Live trip is not loaded.");
-      const rec = postRecovery(trip, analysis?.disruption); setStage(1);
+      const rec = postRecovery(trip, analysis?.disruption, scenario); setStage(1);
       const r = await rec;
       setCandidates(r.candidates); setStage(SEARCH_STAGES.length - 1); setSelectedId(r.selectedId); setResult(r.result);
       setPhase(r.result.feasible ? "RECOVERY_READY" : "NO_FEASIBLE_RECOVERY");
