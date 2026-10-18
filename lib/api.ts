@@ -1,5 +1,5 @@
 import { demoScenarioFor } from "@/lib/domain/fixtures/recovery-scenarios";
-import type { ConstraintOverrides as DomainConstraintOverrides, RecoveryRunResult, Trip } from "@/lib/domain/types";
+import type { ConstraintOverrides as DomainConstraintOverrides, JourneyCatalogueResponse, RecoveryRunRequest, RecoveryRunResult, Trip } from "@/lib/domain/types";
 import { presentImpact, presentRun, presentTrip } from "@/lib/rail-presentation";
 import type { ApiError, DisruptionAnalysis, Itinerary, RecoveryCandidate, RecoveryResult, ScenarioId } from "./types";
 
@@ -14,6 +14,12 @@ export const getTrip = async (scenario: ScenarioId, attempt: number): Promise<It
   const fixture = demoScenarioFor(scenario);
   return presentTrip(await call<Trip>(`/api/v1/trips/${fixture.trip.id}`, { code: "ITINERARY_LOAD_FAILED", message: "We couldn't load this journey." }));
 };
+/** Authoritative, API-backed catalogue for the configurable workbench. */
+export const getJourneyCatalogue = () => call<JourneyCatalogueResponse>("/api/v1/trips", { code: "CATALOGUE_LOAD_FAILED", message: "We couldn't load the simulated journey catalogue." });
+/** Canonical trip details, including the version required by a recovery request. */
+export const getCanonicalTrip = (tripId: string) => call<Trip>(`/api/v1/trips/${encodeURIComponent(tripId)}`, { code: "ITINERARY_LOAD_FAILED", message: "We couldn't load this journey." });
+/** Executes a user-configured recovery without using a legacy scenario fixture. */
+export const runConfiguredRecovery = (request: RecoveryRunRequest) => call<RecoveryRunResult>("/api/v1/recovery-runs", { code: "RECOVERY_SERVICE_UNAVAILABLE", message: "Recovery could not be calculated." }, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) });
 export const disruptionFor = (scenario: ScenarioId) => demoScenarioFor(scenario).disruption;
 async function postRecoveryRun(scenario: ScenarioId, attempt = 0, constraintOverrides?: DomainConstraintOverrides): Promise<RecoveryRunResult> {
   const fixture = demoScenarioFor(scenario);

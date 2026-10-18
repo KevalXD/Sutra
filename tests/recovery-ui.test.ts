@@ -6,7 +6,7 @@ import { demoScenarioFor } from "@/lib/domain/fixtures/recovery-scenarios";
 import { goldenDisruption, goldenTrip } from "@/lib/domain/fixtures/golden-rail-delay-01";
 import { getTrip as canonicalTrip, runRecovery } from "@/lib/recovery/core";
 import { presentCandidate, presentRun, presentTrip } from "@/lib/rail-presentation";
-import { getTrip, runScenario } from "@/lib/api";
+import { getCanonicalTrip, getJourneyCatalogue, getTrip, runConfiguredRecovery, runScenario } from "@/lib/api";
 import { violationLabel } from "@/lib/format";
 
 const noop = async () => true;
@@ -116,6 +116,33 @@ test("frontend API client uses only canonical v1 trip and recovery-run endpoints
     globalThis.fetch = originalFetch;
   }
   assert.deepEqual(paths, ["/api/v1/trips/trip-golden-rail-delay-01", "/api/v1/recovery-runs"]);
+});
+
+test("workbench client loads the API catalogue and sends a configured canonical recovery request", async () => {
+  const originalFetch = globalThis.fetch;
+  const paths: string[] = [];
+  const catalogue = { journeys: [{ tripId: goldenTrip.id, tripVersion: goldenTrip.version, label: "Mangaluru Central to Mysuru Junction", origin: "Mangaluru Central", destination: "Mysuru Junction", journeyDate: "2026-11-10", currency: "INR", defaultConstraints: goldenTrip.constraints, items: [], supportedDisruptions: [{ id: goldenDisruption.scenarioId, label: "Rail A delay", bookingId: "RAIL-A", bookingLabel: "Rail A", kind: "delay", delayRange: { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 } }] }] };
+  const run = await runRecovery({ tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: goldenDisruption, constraintOverrides: { priority: "EARLIER_ARRIVAL" } });
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    paths.push(typeof input === "string" ? input : input.toString());
+    if (paths.length === 3) assert.match(String(init?.body), /"priority":"EARLIER_ARRIVAL"/);
+    return new Response(JSON.stringify(paths.length === 1 ? catalogue : paths.length === 2 ? goldenTrip : run), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    assert.equal((await getJourneyCatalogue()).journeys[0]?.tripId, goldenTrip.id);
+    assert.equal((await getCanonicalTrip(goldenTrip.id)).version, goldenTrip.version);
+    await runConfiguredRecovery({ tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: goldenDisruption, constraintOverrides: { priority: "EARLIER_ARRIVAL" } });
+  } finally { globalThis.fetch = originalFetch; }
+  assert.deepEqual(paths, ["/api/v1/trips", `/api/v1/trips/${goldenTrip.id}`, "/api/v1/recovery-runs"]);
+});
+
+test("workbench exposes an API-backed simulated-data configuration surface", async () => {
+  const { RecoveryWorkbench } = await import("@/components/sutra/recovery-workbench");
+  const html = renderToStaticMarkup(createElement(RecoveryWorkbench));
+  assert.match(html, /Recovery Workbench/);
+  assert.match(html, /SIMULATED DATA/);
+  assert.match(html, /Supported journey and disruption/);
+  assert.match(html, /Loading simulated journey catalogue/);
 });
 
 test("presentation renders validator-provided delayed timing and connection buffers", async () => {

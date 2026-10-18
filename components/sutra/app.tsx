@@ -99,6 +99,7 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
                 className={`rounded-[10px] px-3 py-1.5 transition ${scenario === s.id ? "bg-soft text-ink" : "text-muted hover:text-ink"}`}>{s.label}</Link>
             ))}
           </nav>
+          <Link href="/workbench" className="rounded-[10px] border border-green/40 px-3 py-1.5 text-[13px] font-medium text-green-bright hover:bg-green/10">Workbench</Link>
           <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted" aria-live="polite">
             <StatusMark status={phaseMark} size={16} label={phase} /><span className="hidden md:inline">{phase.replaceAll("_", " ")}</span>
           </div>
