@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { goldenDisruption, goldenTrip } from "@/lib/domain/fixtures/golden-rail-delay-01";
+import { ApiError } from "@google/genai";
 import { GEMINI_REQUEST_TIMEOUT_MS, GeminiRecommendationProvider, type GeminiClient } from "@/lib/recovery/gemini-recommendation-provider";
 import { selectRecommendationProvider, type ProviderFactories } from "@/lib/recovery/provider-selection";
 import { runRecovery, type RecommendationProvider } from "@/lib/recovery/core";
@@ -25,13 +26,35 @@ test("Gemini adapter requests strict JSON output and maps it through the shared 
 });
 
 test("Gemini API and parsing failures emit distinct safe fallback diagnostics", async () => {
-  const apiFailure: GeminiClient = { models: { generateContent: async () => { const error = new Error("not found") as Error & { status: number }; error.status = 404; throw error; } } };
+  const apiFailure: GeminiClient = { models: { generateContent: async () => { throw new ApiError({ message: "not found", status: 404 }); } } };
   const parseFailure: GeminiClient = { models: { generateContent: async () => ({ text: "not-json" }) } };
-  for (const [client, expected] of [[apiFailure, { category: "PROVIDER_API_ERROR", httpStatus: 404 }], [parseFailure, { category: "PROVIDER_RESPONSE_PARSE_ERROR" }]] as const) {
+  for (const [client, expected] of [[apiFailure, { category: "PROVIDER_MODEL_UNAVAILABLE", httpStatus: 404, providerErrorName: "ApiError" }], [parseFailure, { category: "PROVIDER_RESPONSE_PARSE_ERROR" }]] as const) {
     const diagnostics: unknown[] = [];
     const result = await runRecovery(request(), { recommender: new GeminiRecommendationProvider({ apiKey: "test-key", model: "gemini-test", client }), onRecommendationDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
     assert.equal(result.status === "RECOVERED" && result.recommendation.decisionSource, "DETERMINISTIC_FALLBACK");
     assert.deepEqual(diagnostics, [expected]);
+  }
+});
+
+test("Gemini ApiError status safely distinguishes auth, model, quota, and generic API failures", async () => {
+  for (const [status, category] of [[401, "PROVIDER_AUTHENTICATION_ERROR"], [404, "PROVIDER_MODEL_UNAVAILABLE"], [429, "PROVIDER_QUOTA_ERROR"], [503, "PROVIDER_API_ERROR"]] as const) {
+    const diagnostics: unknown[] = [];
+    const client: GeminiClient = { models: { generateContent: async () => { throw new ApiError({ message: "Bearer test-key must never be logged", status }); } } };
+    const result = await runRecovery(request(), { recommender: new GeminiRecommendationProvider({ apiKey: "test-key", model: "gemini-test", client }), onRecommendationDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
+    assert.equal(result.status === "RECOVERED" && result.recommendation.decisionSource, "DETERMINISTIC_FALLBACK");
+    assert.deepEqual(diagnostics, [{ category, httpStatus: status, providerErrorName: "ApiError" }]);
+    assert.equal(JSON.stringify(diagnostics).includes("test-key"), false);
+  }
+});
+
+test("Gemini connection and unknown errors preserve safe fallback without raw messages", async () => {
+  for (const error of [Object.assign(new Error("DNS host internal.example"), { name: "APIConnectionError" }), new Error("Authorization: Bearer test-key")]) {
+    const diagnostics: unknown[] = [];
+    const client: GeminiClient = { models: { generateContent: async () => { throw error; } } };
+    const result = await runRecovery(request(), { recommender: new GeminiRecommendationProvider({ apiKey: "test-key", model: "gemini-test", client }), onRecommendationDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
+    assert.equal(result.status === "RECOVERED" && result.recommendation.decisionSource, "DETERMINISTIC_FALLBACK");
+    assert.equal(JSON.stringify(diagnostics).includes("test-key"), false);
+    assert.equal(JSON.stringify(diagnostics).includes("internal.example"), false);
   }
 });
 

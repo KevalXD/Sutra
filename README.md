@@ -63,6 +63,10 @@ Copy `.env.example` to `.env.local` and configure one server-side provider. `SUT
 
 Keys are read only by the API route and are never included in browser code or recovery responses. A provider receives only already-feasible candidate facts and returns a strict structured selection; the backend independently checks the candidate and all provider-supplied objective claims, then generates the displayed explanation from verified data. Network, timeout, malformed-output, and validation failures fall back safely. There is no runtime switch from a selected, failing provider to the other provider.
 
+### Opt-in real-provider smoke test
+
+After configuring a provider in `.env.local`, run `npm run test:ai:smoke`. It runs the canonical golden request with `constraintOverrides.priority = "EARLIER_ARRIVAL"` through the same provider selection and recovery pipeline as the API route. It never prints keys or request headers; it emits only the provider/model, safe diagnostic category (if any), and verification result. A successful command proves an AI-labelled RC-A result with matching audit and plan, one feasible selected candidate, and the verified 45-minute-earlier / ₹100-more RC-B comparison. It is intentionally separate from `npm test`.
+
 ## Explainable recovery audit
 
 Every successful or no-feasible recovery response includes a backend-authored `decisionAudit`. It records the effective traveller constraints, the decision status and source, the selected candidate when one exists, and each candidate's checked rules and violations. The frontend renders this audit directly, so changing the deadline, budget, or overnight preference triggers a fresh authoritative evaluation instead of a local feasibility guess. Technical failures remain separate from no-feasible outcomes and preserve their error code for retry and diagnostics.
