@@ -52,7 +52,7 @@ export function SutraApp({ scenario, landingOnly = false }: { scenario: Scenario
     ? Object.fromEntries(trip.bookings.map(b => [b.id, b.id === analysis.disruption.bookingId ? "CHANGED" : analysis.affectedBookingIds.includes(b.id) ? "AFFECTED" : "UNCHANGED"])) as Record<string, Diff>
     : undefined;
 
-  const next = phase === "TRIP_LOADED" ? { label: "Simulate disruption", run: f.simulateDisruption }
+  const next = phase === "TRIP_LOADED" ? { label: "Find my best travel option", run: f.findBestOption }
     : phase === "DISRUPTION_DETECTED" ? { label: "Analyze impact", run: f.analyzeImpact }
     : phase === "IMPACT_ANALYSIS" ? { label: "Find recovery", run: f.findRecovery } : null;
 
@@ -98,7 +98,12 @@ export function SutraApp({ scenario, landingOnly = false }: { scenario: Scenario
               <Link key={s.id} href={`/?scenario=${s.id}`} aria-current={scenario === s.id ? "page" : undefined}
                 className={`rounded-[10px] px-3 py-1.5 transition ${scenario === s.id ? "bg-soft text-ink" : "text-muted hover:text-ink"}`}>{s.label}</Link>
             ))}
+<<<<<<< HEAD
           </nav>}
+=======
+          </nav>
+          <Link href="/workbench" className="rounded-[10px] border border-green/40 px-3 py-1.5 text-[13px] font-medium text-green-bright hover:bg-green/10">Workbench</Link>
+>>>>>>> main
           <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted" aria-live="polite">
             <StatusMark status={phaseMark} size={16} label={phase} /><span className="hidden md:inline">{phase.replaceAll("_", " ")}</span>
           </div>
@@ -113,7 +118,7 @@ export function SutraApp({ scenario, landingOnly = false }: { scenario: Scenario
         {!landingOnly && trip && (
           <TracingBeam>
             <TripOverview trip={trip} diffs={tripDiffs} highlightId={highlightId} disruption={hasDisruption ? analysis!.disruption : undefined}
-              cta={phase === "TRIP_LOADED" ? <Btn onClick={f.simulateDisruption}><Radar aria-hidden className="size-4" />Simulate disruption</Btn> : undefined} />
+              cta={phase === "TRIP_LOADED" ? <div className="flex flex-wrap items-center gap-3"><Btn onClick={f.findBestOption}><Search aria-hidden className="size-4" />Find my best travel option</Btn><Btn variant="ghost" onClick={f.simulateDisruption}><Radar aria-hidden className="size-4" />Show me the guided demo</Btn></div> : undefined} />
 
             {hasDisruption && analysis && (
               <DisruptionEvent analysis={analysis} trip={trip} highlightId={highlightId} onHighlight={setHighlightId}
@@ -126,7 +131,7 @@ export function SutraApp({ scenario, landingOnly = false }: { scenario: Scenario
             {phase === "RECOVERY_ANALYSIS" && <RecoveryAnalysis stage={f.stage} />}
             {phase === "RECOVERY_READY" && result && <RecoveryResultView trip={trip} result={result} candidates={f.candidates} selectedId={f.selectedId} disruption={analysis} onRestart={restart} />}
             {phase === "NO_FEASIBLE_RECOVERY" && result && <NoFeasibleView trip={trip} result={result} candidates={f.candidates} onRestart={restart} />}
-            {originalTrip && result && f.effectiveConstraints && (hasResult || phase === "RECOVERY_ANALYSIS" || phase === "TECHNICAL_ERROR") && <TravellerConstraints trip={trip} defaults={originalTrip} effectiveConstraints={f.effectiveConstraints} busy={phase === "RECOVERY_ANALYSIS"} onRecalculate={f.recalculateRecovery} />}
+            {originalTrip && result && f.effectiveConstraints && (hasResult || phase === "RECOVERY_ANALYSIS" || phase === "TECHNICAL_ERROR") && <TravellerConstraints trip={trip} defaults={originalTrip} effectiveConstraints={f.effectiveConstraints} appliedPriority={result.audit?.appliedPriority} busy={phase === "RECOVERY_ANALYSIS"} onRecalculate={f.recalculateRecovery} />}
             {phase === "TECHNICAL_ERROR" && f.error && <TechnicalErrorView error={f.error} onRetry={f.retryRecovery} />}
           </TracingBeam>
         )}

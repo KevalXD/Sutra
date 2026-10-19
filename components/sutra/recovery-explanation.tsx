@@ -7,6 +7,9 @@ const constraintLabel = (kind: string) => ({
   MAX_EXTRA_BUDGET: "Extra budget",
   NO_OVERNIGHT: "Overnight travel",
   CONNECTION: "Connection buffer",
+  TEMPORAL: "Timing/order conflict",
+  LOCATION: "Location continuity",
+  WINDOW: "Arrival window",
 }[kind] ?? kind);
 
 /** Renders the backend decision evidence without recalculating feasibility in React. */
@@ -21,17 +24,21 @@ export function RecoveryExplanation({ audit, currency }: { audit?: DecisionAudit
     constraints.noOvernight ? "no overnight" : "overnight allowed",
   ].join(" · ");
   return (
-    <section aria-labelledby="recovery-explanation-heading" className="sutra-card rounded-[18px] border border-line bg-surface/60 p-5 shadow-l2 md:p-7">
+    <details className="sutra-card rounded-[18px] border border-line bg-surface/60 p-5 shadow-l2 md:p-7">
+      <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="font-mono text-[12px] uppercase tracking-[0.14em] text-green-bright">Decision audit</p>
+          <p className="font-mono text-[12px] uppercase tracking-[0.14em] text-green-bright">Decision details</p>
           <h3 id="recovery-explanation-heading" className="mt-2 font-display text-[clamp(1.4rem,2.4vw,2rem)] font-semibold">
-            {audit.status === "RECOVERED" ? "Why this recovery was selected" : "Why no recovery was offered"}
+            What else we checked
           </h3>
+          <p className="mt-2 text-[14px] text-ink2">See the backend checks for connections, timing, budget and other journey details.</p>
         </div>
         {audit.status === "RECOVERED" ? <Check aria-hidden className="size-7 text-green-bright" /> : <CircleSlash aria-hidden className="size-7 text-warn" />}
       </div>
+      </summary>
       <p className="mt-3 text-[15px] text-ink2">Evaluated with the backend-applied constraints: <span className="font-mono text-[13px] text-ink">{constraintSummary}</span>.</p>
+      {audit.appliedPriority && <p className="mt-2 text-[14px] text-ink2">Applied recovery priority: <span className="font-medium text-ink">{audit.appliedPriority === "LOWER_COST" ? "Lower additional cost" : "Earlier arrival"}</span>.</p>}
       <p className="mt-2 font-mono text-[12px] uppercase tracking-[0.1em] text-muted">Source: {source}{selected ? ` · selected ${selected.candidateId}` : ""}</p>
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {audit.candidates.map((candidate) => (
@@ -55,6 +62,6 @@ export function RecoveryExplanation({ audit, currency }: { audit?: DecisionAudit
           <ul className="mt-2 space-y-1">{audit.noFeasibleReasons.map((reason, index) => <li key={`${reason.itemId}-${reason.kind}-${index}`}>{constraintLabel(reason.kind)} · {reason.message}</li>)}</ul>
         </div>
       )}
-    </section>
+    </details>
   );
 }

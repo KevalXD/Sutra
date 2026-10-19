@@ -31,6 +31,9 @@ export type SoftPreference =
   | "FEWER_CHANGES"
   | "PRESERVE_ITINERARY";
 
+/** The two traveller-selectable ranking objectives for an explicit recovery run. */
+export type RecoveryPriority = Extract<SoftPreference, "LOWER_COST" | "EARLIER_ARRIVAL">;
+
 export type DependencyKind =
   | "TEMPORAL"
   | "CONNECTION"
@@ -68,6 +71,8 @@ export interface TransportLeg {
   bookingId: string;
   origin: string;
   destination: string;
+  originLocationId?: string;
+  destinationLocationId?: string;
   departureAt: string;
   arrivalAt: string;
 }
@@ -75,6 +80,7 @@ export interface TransportLeg {
 export interface AccommodationBooking extends ItineraryItemBase {
   kind: "accommodation";
   location: string;
+  locationId?: string;
   checkInAt: string;
   checkOutAt: string;
 }
@@ -82,6 +88,7 @@ export interface AccommodationBooking extends ItineraryItemBase {
 export interface ActivityCommitment extends ItineraryItemBase {
   kind: "activity";
   location: string;
+  locationId?: string;
   startsAt: string;
   endsAt: string;
 }
@@ -102,6 +109,8 @@ export interface ConstraintOverrides {
   latestArrivalAt?: string;
   maxExtraBudget?: number;
   noOvernight?: boolean;
+  /** Per-run ranking objective; never mutates the stored trip. */
+  priority?: RecoveryPriority;
 }
 
 export interface Dependency {
@@ -110,6 +119,7 @@ export interface Dependency {
   toItemId: string;
   kind: DependencyKind;
   minimumBufferMinutes?: number;
+  arrivalWindow?: { earliestAt?: string; latestAt: string };
 }
 
 export interface Disruption {
@@ -118,6 +128,51 @@ export interface Disruption {
   bookingId: string;
   kind: DisruptionKind;
   delayMinutes?: number;
+}
+
+/** A backend-supported disruption that can be selected from the journey catalogue. */
+export interface SupportedDisruptionProfile {
+  id: string;
+  label: string;
+  bookingId: string;
+  bookingLabel: string;
+  kind: DisruptionKind;
+  /** Present only when the profile accepts a caller-selected delay duration. */
+  delayRange?: { minimumMinutes: number; maximumMinutes: number; stepMinutes: number };
+}
+
+export interface JourneyCatalogueItem {
+  id: string;
+  kind: ItineraryItemKind;
+  label: string;
+  origin?: string;
+  destination?: string;
+  departureAt?: string;
+  arrivalAt?: string;
+  location?: string;
+  checkInAt?: string;
+  checkOutAt?: string;
+  startsAt?: string;
+  endsAt?: string;
+}
+
+export interface JourneyCatalogueEntry {
+  tripId: string;
+  tripVersion: number;
+  /** Every catalogue journey is synthetic fixture data, never live inventory. */
+  source: "SIMULATED";
+  label: string;
+  origin: string;
+  destination: string;
+  journeyDate: string;
+  currency: string;
+  defaultConstraints: ConstraintSet;
+  items: JourneyCatalogueItem[];
+  supportedDisruptions: SupportedDisruptionProfile[];
+}
+
+export interface JourneyCatalogueResponse {
+  journeys: JourneyCatalogueEntry[];
 }
 
 export interface Alternative {
@@ -141,7 +196,7 @@ export interface RecoveryCandidate {
 }
 
 export interface ConstraintViolation {
-  kind: ConstraintKind | "CONNECTION";
+  kind: ConstraintKind | DependencyKind;
   itemId: string;
   message: string;
 }
@@ -161,6 +216,7 @@ export interface CandidateDecisionAudit {
   finalArrivalAt: string;
   extraCost: number;
   constraintChecks: ConstraintEvaluation[];
+  dependencyChecks: DependencyCheck[];
   violations: ConstraintViolation[];
 }
 
@@ -171,6 +227,8 @@ export interface DecisionAudit {
   decisionSource: DecisionAuditSource;
   selectedCandidateId: string | null;
   effectiveConstraints: ConstraintSet | null;
+  /** Present only when this calculation received an explicit traveller priority. */
+  appliedPriority?: RecoveryPriority;
   candidates: CandidateDecisionAudit[];
   noFeasibleReasons: ConstraintViolation[];
   technicalError?: { code: string; message: string };
@@ -204,6 +262,7 @@ export interface ValidatedRecoveryCandidate extends GeneratedRecoveryCandidate {
   repairedTimings: Record<string, ItemTiming | null>;
   /** Canonical connection facts, calculated against the repaired itinerary. */
   connectionChecks: ConnectionCheck[];
+  dependencyChecks: DependencyCheck[];
 }
 
 export interface ConstraintEvaluation extends ConstraintViolation { passed: boolean }
@@ -217,6 +276,19 @@ export interface ConnectionCheck {
   minimumBufferMinutes: number;
   passed: boolean;
 }
+export interface DependencyCheckBase {
+  dependencyId: string;
+  kind: DependencyKind;
+  predecessorItemId: string;
+  successorItemId: string;
+  passed: boolean;
+  message: string;
+}
+export type DependencyCheck =
+  | (DependencyCheckBase & { kind: "CONNECTION"; predecessorCompletionAt: string | null; successorStartAt: string | null; actualBufferMinutes: number | null; minimumBufferMinutes: number })
+  | (DependencyCheckBase & { kind: "TEMPORAL"; predecessorCompletionAt: string | null; successorStartAt: string | null })
+  | (DependencyCheckBase & { kind: "LOCATION"; predecessorLocationId: string | null; successorLocationId: string | null })
+  | (DependencyCheckBase & { kind: "WINDOW"; predecessorCompletionAt: string | null; earliestAt: string | null; latestAt: string | null });
 export interface RepairedItem {
   itemId: string; kind: ItineraryItemKind; label: string;
   impactState: ImpactState; recoveryChange: RecoveryChange;

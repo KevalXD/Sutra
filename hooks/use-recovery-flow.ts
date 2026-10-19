@@ -85,6 +85,24 @@ export function useRecoveryFlow(scenario: ScenarioId) {
     } catch (e) { fail(e); }
   };
 
+  /** A traveller-facing shortcut for the same API-backed recovery flow.
+   * The guided steps remain available, but people do not need to understand them
+   * before asking Sutra for the best available option. */
+  const findBestOption = async () => {
+    if (recoveryRequestInFlight.current) return;
+    recoveryRequestInFlight.current = true;
+    const generation = requestGeneration.current;
+    setPhase("RECOVERY_ANALYSIS"); setStage(0); setError(undefined);
+    try {
+      const run = await runScenario(scenario, retries);
+      if (generation !== requestGeneration.current) return;
+      setTrip(run.effectiveTrip); setAnalysis(run.analysis); setCandidates(run.candidates); setSelectedId(run.selectedId); setResult(run.result); setEffectiveConstraints(run.effectiveConstraints);
+      setStage(SEARCH_STAGES.length - 1);
+      setPhase(run.result.feasible ? "RECOVERY_READY" : "NO_FEASIBLE_RECOVERY");
+    } catch (e) { if (generation === requestGeneration.current) fail(e); }
+    finally { recoveryRequestInFlight.current = false; }
+  };
+
   const recalculateRecovery = async (constraintOverrides: ConstraintOverrides): Promise<boolean> => {
     if (recoveryRequestInFlight.current) return false;
     recoveryRequestInFlight.current = true;
@@ -100,5 +118,5 @@ export function useRecoveryFlow(scenario: ScenarioId) {
     finally { recoveryRequestInFlight.current = false; }
   };
 
-  return { phase, trip, analysis, result, effectiveConstraints, candidates, selectedId, stage, error, reload, retryRecovery, simulateDisruption, analyzeImpact, findRecovery, recalculateRecovery };
+  return { phase, trip, analysis, result, effectiveConstraints, candidates, selectedId, stage, error, reload, retryRecovery, simulateDisruption, analyzeImpact, findRecovery, findBestOption, recalculateRecovery };
 }

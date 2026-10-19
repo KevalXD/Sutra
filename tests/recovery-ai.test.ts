@@ -33,11 +33,24 @@ for (const [label, recommender] of [
   });
 }
 
-test("provider network failures and timeouts use deterministic RC-B fallback", async () => {
-  for (const message of ["network unavailable", "timeout"]) {
-    const result = await runRecovery(request(), { recommender: { recommend: async () => { throw new Error(message); } } });
-    assert.equal(result.status === "RECOVERED" && result.recommendation.selectedCandidateId, "RC-B");
-  }
+test("provider failures use deterministic RC-B fallback", async () => {
+  const result = await runRecovery(request(), { recommender: { recommend: async () => { throw new Error("network unavailable"); } } });
+  assert.equal(result.status === "RECOVERED" && result.recommendation.selectedCandidateId, "RC-B");
+});
+
+test("a real recommendation timeout falls back deterministically and records PROVIDER_TIMEOUT", async () => {
+  const diagnostics: unknown[] = [];
+  const result = await runRecovery(request(), {
+    recommender: { recommend: async () => new Promise(() => {}) },
+    recommendationTimeoutMs: 20,
+    onRecommendationDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+  });
+  assert.equal(result.status, "RECOVERED");
+  if (result.status !== "RECOVERED") return;
+  assert.equal(result.recommendation.selectedCandidateId, "RC-B");
+  assert.equal(result.recommendation.decisionSource, "DETERMINISTIC_FALLBACK");
+  assert.equal(result.decisionAudit.decisionSource, result.recommendation.decisionSource);
+  assert.deepEqual(diagnostics, [{ category: "PROVIDER_TIMEOUT" }]);
 });
 
 test("post-validation rejection is diagnosed without weakening the deterministic fallback", async () => {
@@ -54,6 +67,23 @@ test("the provider sees only feasible candidates and is never called when no rec
   const fixture = demoScenarioFor("infeasible");
   const noFeasible = await runRecovery({ tripId: fixture.trip.id, tripVersion: fixture.trip.version, disruption: fixture.disruption }, { recommender: { recommend: async () => { calls += 1; throw new Error("must not run"); } } });
   assert.equal(noFeasible.status, "NO_FEASIBLE_RECOVERY"); assert.equal(calls, 1);
+});
+
+test("the provider receives the explicit priority and cannot override its deterministic ranking", async () => {
+  let activePriority: string | undefined;
+  let seen: string[] = [];
+  const result = await runRecovery({ ...request(), constraintOverrides: { priority: "LOWER_COST" } }, {
+    recommender: { recommend: async (context) => {
+      activePriority = context.activePriority;
+      seen = context.feasibleCandidates.map((candidate) => candidate.id);
+      // A valid-but-wrong AI choice must be rejected in favour of the priority fallback.
+      return { selectedCandidateId: "RC-A", preference: "LOWER_COST", comparedCandidateId: "RC-B", facts: rcAFacts };
+    } },
+  });
+  assert.equal(activePriority, "LOWER_COST");
+  assert.deepEqual(seen, ["RC-A", "RC-B"]);
+  assert.equal(result.status === "RECOVERED" && result.recommendation.selectedCandidateId, "RC-B");
+  assert.equal(result.status === "RECOVERED" && result.decisionAudit.appliedPriority, "LOWER_COST");
 });
 
 test("OpenAI adapter sends only feasible facts and parses a strict structured selection", async () => {

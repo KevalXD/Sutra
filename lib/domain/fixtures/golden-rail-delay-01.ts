@@ -69,6 +69,7 @@ export const goldenTrip: Trip = {
       fromItemId: "RAIL-B",
       toItemId: "HOTEL-1",
       kind: "WINDOW",
+      arrivalWindow: { latestAt: `${DAY}T22:00:00` },
     },
   ],
 
@@ -138,6 +139,10 @@ const candidateFacts = (alternative: Alternative) => ({
     "HOTEL-1": { startAt: `${DAY}T17:00:00`, endAt: `${NEXT_DAY}T10:00:00` },
   },
   connectionChecks: [{ dependencyId: "RAIL-A->RAIL-B", predecessorItemId: "RAIL-A", successorItemId: "RAIL-B", predecessorArrivalAt: `${DAY}T15:00:00`, successorDepartureAt: alternative.departureAt, actualBufferMinutes: (Date.parse(`${alternative.departureAt}Z`) - Date.parse(`${DAY}T15:00:00Z`)) / 60000, minimumBufferMinutes: 30, passed: Date.parse(`${alternative.departureAt}Z`) >= Date.parse(`${DAY}T15:30:00Z`) }],
+  dependencyChecks: [
+    { dependencyId: "DEP-RAIL-A-RAIL-B", kind: "CONNECTION" as const, predecessorItemId: "RAIL-A", successorItemId: "RAIL-B", predecessorCompletionAt: `${DAY}T15:00:00`, successorStartAt: alternative.departureAt, actualBufferMinutes: (Date.parse(`${alternative.departureAt}Z`) - Date.parse(`${DAY}T15:00:00Z`)) / 60000, minimumBufferMinutes: 30, passed: Date.parse(`${alternative.departureAt}Z`) >= Date.parse(`${DAY}T15:30:00Z`), message: "Static golden fixture connection check." },
+    { dependencyId: "DEP-RAIL-B-HOTEL-1", kind: "WINDOW" as const, predecessorItemId: "RAIL-B", successorItemId: "HOTEL-1", predecessorCompletionAt: alternative.arrivalAt, earliestAt: null, latestAt: `${DAY}T22:00:00`, passed: alternative.arrivalAt <= `${DAY}T22:00:00`, message: "Static golden fixture hotel-window check." },
+  ],
 });
 
 export const goldenCandidates: ValidatedRecoveryCandidate[] = [
@@ -228,6 +233,11 @@ export const goldenCandidates: ValidatedRecoveryCandidate[] = [
         kind: "NO_OVERNIGHT",
         itemId: "RAIL-B",
         message: "Recovery requires overnight travel while overnight travel is prohibited.",
+      },
+      {
+        kind: "WINDOW",
+        itemId: "HOTEL-1",
+        message: "Arrival 2026-11-10T23:30:00 must be within the beginning of time and 2026-11-10T22:00:00.",
       },
     ],
     extraCost: 150,

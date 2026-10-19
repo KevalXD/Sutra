@@ -30,6 +30,7 @@ export interface ConstraintOverrides {
   latestArrivalAt?: string;
   maxExtraBudget?: number;
   noOvernight?: boolean;
+  priority?: "LOWER_COST" | "EARLIER_ARRIVAL";
 }
 export interface Itinerary {
   id: string;
@@ -46,6 +47,9 @@ export interface Disruption {
 export type ViolationKind =
   | "route"
   | "connection"
+  | "temporal"
+  | "location"
+  | "window"
   | "hotel"
   | "overnight"
   | "deadline"
@@ -107,6 +111,7 @@ export interface DisruptionAnalysis {
 }
 export interface ApiError {
   code:
+    | "CATALOGUE_LOAD_FAILED"
     | "ITINERARY_LOAD_FAILED"
     | "INVALID_DISRUPTION"
     | "RECOVERY_SERVICE_UNAVAILABLE"

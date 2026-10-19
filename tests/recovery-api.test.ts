@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { goldenDisruption, goldenTrip } from "@/lib/domain/fixtures/golden-rail-delay-01";
 import { cancellationNoRecoveryScenario, demoScenarioFor } from "@/lib/domain/fixtures/recovery-scenarios";
-import { recoveryRunOutcome, tripOutcome } from "@/lib/recovery/http";
+import { recoveryRunOutcome, tripOutcome, tripsOutcome } from "@/lib/recovery/http";
 import type { RecoveryRunResult } from "@/lib/domain/types";
 
 const request = () => ({ tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: goldenDisruption });
@@ -14,13 +14,126 @@ test("root trip endpoint returns the canonical versioned trip", async () => {
   assert.equal((response.body as typeof goldenTrip).version, 1);
 });
 
+test("journey catalogue exposes only supported selectable journeys and profiles", async () => {
+  const response = await tripsOutcome();
+  assert.equal(response.status, 200);
+  const body = response.body;
+  assert.deepEqual(body.journeys.map((journey) => journey.tripId), ["trip-golden-rail-delay-01", "trip-mangaluru-bengaluru-01", "trip-mangaluru-udupi-01", "trip-bengaluru-chennai-01"]);
+  const golden = body.journeys[0];
+  assert.equal(golden.origin, "Mangaluru Central");
+  assert.equal(golden.destination, "Mysuru Junction");
+  assert.equal(golden.tripVersion, 1);
+  assert.deepEqual(golden.supportedDisruptions.map((profile) => profile.id), ["golden-rail-delay-01", "rail-cancellation-01"]);
+  assert.deepEqual(golden.supportedDisruptions[0].delayRange, { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 });
+  assert.equal(golden.items[0].departureAt, "2026-11-10T09:00:00");
+  assert.equal(golden.items[2].location, "Mysuru");
+  assert.equal(JSON.stringify(body).includes("technical-error-retry-01"), false);
+  assert.equal(JSON.stringify(body).includes("no-feasible-recovery-01"), false);
+  const bengaluru = body.journeys[1];
+  assert.equal(bengaluru.destination, "Bengaluru City");
+  assert.deepEqual(bengaluru.items.map((item) => item.id), ["RAIL-C", "RAIL-D", "ACTIVITY-1", "HOTEL-2"]);
+  assert.deepEqual(bengaluru.supportedDisruptions.map((profile) => profile.id), ["mangaluru-bengaluru-delay-01"]);
+  const udupi = body.journeys[2];
+  assert.equal(udupi.destination, "Udupi");
+  assert.deepEqual(udupi.items.map((item) => item.id), ["RAIL-E", "ACTIVITY-UDUPI-1", "HOTEL-UDUPI-1"]);
+  assert.deepEqual(udupi.supportedDisruptions.map((profile) => profile.id), ["mangaluru-udupi-rail-delay-01"]);
+  const chennai = body.journeys[3];
+  assert.equal(chennai.origin, "Bengaluru City");
+  assert.equal(chennai.destination, "Chennai Central");
+  assert.deepEqual(chennai.items.map((item) => item.id), ["RAIL-F", "RAIL-G", "ACTIVITY-CHENNAI-1", "HOTEL-CHENNAI-1"]);
+  assert.deepEqual(chennai.supportedDisruptions.map((profile) => profile.id), ["bengaluru-chennai-later-rail-delay-01"]);
+  assert.ok(body.journeys.every((journey) => journey.source === "SIMULATED"));
+});
+
+test("new journey trip endpoints return their canonical versioned fixtures", async () => {
+  for (const tripId of ["trip-mangaluru-udupi-01", "trip-bengaluru-chennai-01"]) {
+    const response = await tripOutcome(tripId);
+    assert.equal(response.status, 200);
+    const trip = response.body as { id: string; version: number; items: { id: string }[] };
+    assert.equal(trip.id, tripId);
+    assert.equal(trip.version, 1);
+    assert.ok(trip.items.length >= 3);
+  }
+});
+
+test("the new journeys calculate recovery feasibility and audit actual dependency and budget failures", async () => {
+  const udupi = await recoveryRunOutcome({ tripId: "trip-mangaluru-udupi-01", tripVersion: 1, disruption: { source: "SIMULATED", scenarioId: "mangaluru-udupi-rail-delay-01", bookingId: "RAIL-E", kind: "delay", delayMinutes: 60 } });
+  assert.equal(udupi.status, 200);
+  const udupiBody = udupi.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>;
+  assert.equal(udupiBody.status, "RECOVERED");
+  assert.deepEqual(udupiBody.candidates.filter((candidate) => candidate.feasible).map((candidate) => candidate.id), ["MU-A"]);
+  assert.equal(udupiBody.candidates.find((candidate) => candidate.id === "MU-B")?.connectionChecks.length, 0);
+  assert.ok(udupiBody.candidates.find((candidate) => candidate.id === "MU-B")?.violations.some((violation) => violation.kind === "WINDOW"));
+  assert.ok(udupiBody.candidates.find((candidate) => candidate.id === "MU-C")?.violations.some((violation) => violation.kind === "MAX_EXTRA_BUDGET"));
+
+  const chennai = await recoveryRunOutcome({ tripId: "trip-bengaluru-chennai-01", tripVersion: 1, disruption: { source: "SIMULATED", scenarioId: "bengaluru-chennai-later-rail-delay-01", bookingId: "RAIL-G", kind: "delay", delayMinutes: 90 } });
+  assert.equal(chennai.status, 200);
+  const chennaiBody = chennai.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>;
+  assert.equal(chennaiBody.status, "RECOVERED");
+  assert.deepEqual(chennaiBody.candidates.filter((candidate) => candidate.feasible).map((candidate) => candidate.id), ["BC-A"]);
+  const connectionFailure = chennaiBody.candidates.find((candidate) => candidate.id === "BC-B")!;
+  assert.ok(connectionFailure.violations.some((violation) => violation.kind === "CONNECTION"));
+  assert.ok(connectionFailure.dependencyChecks.some((check) => check.kind === "CONNECTION" && !check.passed));
+  const downstreamFailure = chennaiBody.candidates.find((candidate) => candidate.id === "BC-C")!;
+  assert.ok(downstreamFailure.violations.some((violation) => violation.kind === "WINDOW"));
+  assert.ok(chennaiBody.candidates.find((candidate) => candidate.id === "BC-D")?.violations.some((violation) => violation.kind === "MAX_EXTRA_BUDGET"));
+  assert.deepEqual(chennaiBody.decisionAudit.candidates.map((candidate) => candidate.candidateId), chennaiBody.candidates.map((candidate) => candidate.id));
+  assert.equal(new Set(chennaiBody.candidates.map((candidate) => candidate.id)).size, chennaiBody.candidates.length);
+  for (const candidate of chennaiBody.candidates.filter((candidate) => candidate.feasible)) assert.equal(candidate.violations.length, 0);
+});
+
+test("configurable delays validate declared range and alter canonical timing", async () => {
+  for (const delayMinutes of [30, 120, 150, 180]) {
+    const response = await recoveryRunOutcome({ ...request(), disruption: { ...goldenDisruption, delayMinutes } });
+    assert.equal(response.status, 200);
+  }
+  const shortDelay = await recoveryRunOutcome({ ...request(), disruption: { ...goldenDisruption, delayMinutes: 30 } });
+  const shortBody = shortDelay.body as { candidates: { id: string; repairedTimings: Record<string, { endAt: string }> }[] };
+  assert.equal(shortBody.candidates[0].repairedTimings["RAIL-A"].endAt, "2026-11-10T13:30:00");
+  for (const delayMinutes of [0, -30, 45, 181, 30.5]) {
+    const response = await recoveryRunOutcome({ ...request(), disruption: { ...goldenDisruption, delayMinutes } });
+    assert.ok(response.status === 400 || response.status === 422);
+    assert.ok(["INVALID_REQUEST", "DOMAIN_REJECTED"].includes((response.body as { error: { code: string } }).error.code));
+  }
+});
+
+test("configured profiles reject mismatched trip, booking, kind, and cancellation delay", async () => {
+  assert.equal((await recoveryRunOutcome({ ...request(), disruption: { ...goldenDisruption, bookingId: "RAIL-B" } })).status, 422);
+  assert.equal((await recoveryRunOutcome({ ...request(), disruption: { ...goldenDisruption, kind: "cancellation", delayMinutes: undefined } })).status, 422);
+  const cancellation = demoScenarioFor("cancellation");
+  assert.equal((await recoveryRunOutcome({ tripId: cancellation.trip.id, tripVersion: cancellation.trip.version, disruption: { ...cancellation.disruption, delayMinutes: 30 } })).status, 422);
+});
+
+test("the Bengaluru fixture recomputes its connection and reaches both recovery outcomes", async () => {
+  const base = { tripId: "trip-mangaluru-bengaluru-01", tripVersion: 1, disruption: { source: "SIMULATED" as const, scenarioId: "mangaluru-bengaluru-delay-01", bookingId: "RAIL-C", kind: "delay" as const } };
+  const recovered = await recoveryRunOutcome({ ...base, disruption: { ...base.disruption, delayMinutes: 30 } });
+  assert.equal(recovered.status, 200);
+  const recoveredBody = recovered.body as { status: string; candidates: { id: string; connectionChecks: { actualBufferMinutes: number; passed: boolean }[] }[] };
+  assert.equal(recoveredBody.status, "RECOVERED");
+  assert.deepEqual(recoveredBody.candidates.find((candidate) => candidate.id === "MB-A")?.connectionChecks[0], { dependencyId: "RAIL-C->RAIL-D", predecessorItemId: "RAIL-C", successorItemId: "RAIL-D", predecessorArrivalAt: "2026-11-12T12:30:00", successorDepartureAt: "2026-11-12T13:00:00", actualBufferMinutes: 30, minimumBufferMinutes: 30, passed: true });
+  const infeasible = await recoveryRunOutcome({ ...base, disruption: { ...base.disruption, delayMinutes: 150 } });
+  assert.equal((infeasible.body as { status: string }).status, "NO_FEASIBLE_RECOVERY");
+});
+
+test("Bengaluru recoveries preserve downstream commitments only when their verified window passes", async () => {
+  const base = { tripId: "trip-mangaluru-bengaluru-01", tripVersion: 1, disruption: { source: "SIMULATED" as const, scenarioId: "mangaluru-bengaluru-delay-01", bookingId: "RAIL-C", kind: "delay" as const } };
+  const response = await recoveryRunOutcome({ ...base, disruption: { ...base.disruption, delayMinutes: 30 } });
+  const body = response.body as { candidates: { id: string; feasible: boolean; dependencyChecks: { kind: string; passed: boolean; predecessorCompletionAt?: string }[] }[] };
+  const recovery = body.candidates.find((candidate) => candidate.id === "MB-B")!;
+  assert.equal(recovery.feasible, true);
+  assert.equal(recovery.dependencyChecks.find((check) => check.kind === "WINDOW")?.passed, true);
+  assert.equal(recovery.dependencyChecks.find((check) => check.kind === "TEMPORAL")?.passed, true);
+  const late = (await recoveryRunOutcome({ ...base, disruption: { ...base.disruption, delayMinutes: 150 } })).body as { candidates: { id: string; violations: { kind: string; itemId: string }[] }[] };
+  assert.ok(late.candidates.find((candidate) => candidate.id === "MB-C")?.violations.some((violation) => violation.kind === "WINDOW" && violation.itemId === "ACTIVITY-1"));
+});
+
 test("root recovery endpoint runs the real canonical pipeline", async () => {
   const response = await recoveryRunOutcome(request());
   assert.equal(response.status, 200);
   const body = response.body as { status: string; candidates: { id: string; feasible: boolean; violations: { kind: string }[] }[]; recommendation: { decisionSource: string }; actions: { kind: string; itemId: string; description: string; automated: boolean }[] };
   assert.equal(body.status, "RECOVERED");
   assert.deepEqual(body.candidates.filter((candidate) => candidate.feasible).map((candidate) => candidate.id), ["RC-A", "RC-B"]);
-  assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-D")?.violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT"]);
+  assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-D")?.violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT", "WINDOW"]);
   assert.equal(body.recommendation.decisionSource, "DETERMINISTIC_FALLBACK");
   assert.deepEqual(body.actions, [{ id: "ACT-1", kind: "BOOK_REPLACEMENT", itemId: "RAIL-B", description: "Book simulated replacement RC-B-ALT.", automated: false }]);
 });
@@ -45,7 +158,7 @@ test("constraint overrides are independently validated and select RC-C through d
   assert.deepEqual(body.candidates.filter((candidate) => candidate.feasible).map((candidate) => candidate.id), ["RC-C"]);
   assert.equal(body.recommendation?.selectedCandidateId, "RC-C");
   assert.equal(body.recommendation?.decisionSource, "DETERMINISTIC_FALLBACK");
-  assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-D")?.violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT"]);
+  assert.deepEqual(body.candidates.find((candidate) => candidate.id === "RC-D")?.violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT", "WINDOW"]);
 });
 
 test("strict constraints return no recovery with backend-derived reasons and do not mutate the fixture", async () => {
@@ -80,6 +193,37 @@ test("constraint override input rejects malformed timestamps, budgets, booleans,
   for (const constraintOverrides of invalid) assert.equal((await recoveryRunOutcome({ ...request(), constraintOverrides })).status, 400);
 });
 
+test("explicit traveller priorities rank only feasible candidates and are recorded in the audit", async () => {
+  const lowerCost = await recoveryRunOutcome({ ...request(), constraintOverrides: { priority: "LOWER_COST" } });
+  const earlierArrival = await recoveryRunOutcome({ ...request(), constraintOverrides: { priority: "EARLIER_ARRIVAL" } });
+  for (const [response, priority, selectedCandidateId] of [[lowerCost, "LOWER_COST", "RC-B"], [earlierArrival, "EARLIER_ARRIVAL", "RC-A"]] as const) {
+    assert.equal(response.status, 200);
+    const body = response.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>;
+    assert.equal(body.recommendation.selectedCandidateId, selectedCandidateId);
+    assert.equal(body.recommendation.decisionSource, "DETERMINISTIC_FALLBACK");
+    assert.equal(body.decisionAudit.appliedPriority, priority);
+  }
+  // The established no-override fallback remains cost-first.
+  const legacy = await recoveryRunOutcome(request());
+  assert.equal((legacy.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>).recommendation.selectedCandidateId, "RC-B");
+  assert.equal((legacy.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>).decisionAudit.appliedPriority, undefined);
+});
+
+test("priority cannot make a deadline-violating cheaper candidate feasible", async () => {
+  const response = await recoveryRunOutcome({ ...request(), constraintOverrides: { latestArrivalAt: "2026-11-10T18:00:00", priority: "LOWER_COST" } });
+  assert.equal(response.status, 200);
+  const body = response.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>;
+  assert.equal(body.recommendation.selectedCandidateId, "RC-A");
+  assert.equal(body.candidates.find((candidate) => candidate.id === "RC-B")?.feasible, false);
+  assert.ok(body.candidates.find((candidate) => candidate.id === "RC-B")?.violations.some((violation) => violation.kind === "ARRIVAL_DEADLINE"));
+});
+
+test("priority rejects unsupported values using the structured request error", async () => {
+  const response = await recoveryRunOutcome({ ...request(), constraintOverrides: { priority: "FASTEST" } });
+  assert.equal(response.status, 400);
+  assert.equal((response.body as { error: { code: string } }).error.code, "INVALID_REQUEST");
+});
+
 test("golden delay exposes validator-derived disrupted timing and connection facts", async () => {
   const response = await recoveryRunOutcome(request());
   const body = response.body as unknown as { candidates: { id: string; repairedTimings: Record<string, { endAt: string } | null>; connectionChecks: { predecessorArrivalAt: string; successorDepartureAt: string; actualBufferMinutes: number; minimumBufferMinutes: number; passed: boolean }[]; recoveryChanges: Record<string, string>; impactStates: Record<string, string> }[] };
@@ -104,6 +248,19 @@ test("root recovery distinguishes infeasibility from a technical adapter failure
   const technical = await recoveryRunOutcome(request(), { findAlternatives: async () => { throw new Error("adapter outage"); } });
   assert.equal(technical.status, 500);
   assert.equal((technical.body as { status: string }).status, "TECHNICAL_ERROR");
+});
+
+test("duplicate normalized candidate identities are adapter-contract technical failures", async () => {
+  const alternatives = [
+    { id: "RC-A-ALT", replacementForBookingId: "RAIL-B", departureAt: "2026-11-10T15:30:00", arrivalAt: "2026-11-10T17:45:00", extraCost: 450, source: "SIMULATED_OFFER" as const },
+    { id: "A", replacementForBookingId: "RAIL-B", departureAt: "2026-11-10T16:00:00", arrivalAt: "2026-11-10T18:30:00", extraCost: 350, source: "SIMULATED_OFFER" as const },
+  ];
+  const response = await recoveryRunOutcome(request(), { findAlternatives: async () => alternatives });
+  assert.equal(response.status, 500);
+  const body = response.body as { status: string; decisionAudit: { technicalError?: { code: string; message: string } } };
+  assert.equal(body.status, "TECHNICAL_ERROR");
+  assert.equal(body.decisionAudit.technicalError?.code, "ADAPTER_CONTRACT_VIOLATION");
+  assert.match(body.decisionAudit.technicalError?.message ?? "", /Duplicate recovery candidate ID RC-A/);
 });
 
 test("cancellation uses the canonical trip and returns a validated simulated replacement", async () => {
@@ -139,7 +296,7 @@ test("the independent no-feasible fixture retains every failed candidate and nev
   assert.equal(body.recommendation, null);
   assert.equal(body.recoveryPlan, null);
   assert.deepEqual(body.candidates.map((candidate) => candidate.feasible), [false, false, false]);
-  assert.deepEqual(body.candidates[1].violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT"]);
+  assert.deepEqual(body.candidates[1].violations.map((violation) => violation.kind), ["ARRIVAL_DEADLINE", "NO_OVERNIGHT", "WINDOW"]);
 });
 
 test("the controlled adapter outage is TECHNICAL_ERROR once and the retry reaches recovery", async () => {
