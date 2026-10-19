@@ -121,7 +121,7 @@ test("frontend API client uses only canonical v1 trip and recovery-run endpoints
 test("workbench client loads the API catalogue and sends a configured canonical recovery request", async () => {
   const originalFetch = globalThis.fetch;
   const paths: string[] = [];
-  const catalogue = { journeys: [{ tripId: goldenTrip.id, tripVersion: goldenTrip.version, label: "Mangaluru Central to Mysuru Junction", origin: "Mangaluru Central", destination: "Mysuru Junction", journeyDate: "2026-11-10", currency: "INR", defaultConstraints: goldenTrip.constraints, items: [], supportedDisruptions: [{ id: goldenDisruption.scenarioId, label: "Rail A delay", bookingId: "RAIL-A", bookingLabel: "Rail A", kind: "delay", delayRange: { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 } }] }] };
+  const catalogue = { journeys: [{ tripId: goldenTrip.id, tripVersion: goldenTrip.version, source: "SIMULATED" as const, label: "Mangaluru Central to Mysuru Junction", origin: "Mangaluru Central", destination: "Mysuru Junction", journeyDate: "2026-11-10", currency: "INR", defaultConstraints: goldenTrip.constraints, items: [], supportedDisruptions: [{ id: goldenDisruption.scenarioId, label: "Rail A delay", bookingId: "RAIL-A", bookingLabel: "Rail A", kind: "delay", delayRange: { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 } }] }] };
   const run = await runRecovery({ tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: goldenDisruption, constraintOverrides: { priority: "EARLIER_ARRIVAL" } });
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     paths.push(typeof input === "string" ? input : input.toString());

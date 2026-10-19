@@ -18,7 +18,7 @@ test("journey catalogue exposes only supported selectable journeys and profiles"
   const response = await tripsOutcome();
   assert.equal(response.status, 200);
   const body = response.body;
-  assert.deepEqual(body.journeys.map((journey) => journey.tripId), ["trip-golden-rail-delay-01", "trip-mangaluru-bengaluru-01"]);
+  assert.deepEqual(body.journeys.map((journey) => journey.tripId), ["trip-golden-rail-delay-01", "trip-mangaluru-bengaluru-01", "trip-mangaluru-udupi-01", "trip-bengaluru-chennai-01"]);
   const golden = body.journeys[0];
   assert.equal(golden.origin, "Mangaluru Central");
   assert.equal(golden.destination, "Mysuru Junction");
@@ -33,6 +33,53 @@ test("journey catalogue exposes only supported selectable journeys and profiles"
   assert.equal(bengaluru.destination, "Bengaluru City");
   assert.deepEqual(bengaluru.items.map((item) => item.id), ["RAIL-C", "RAIL-D", "ACTIVITY-1", "HOTEL-2"]);
   assert.deepEqual(bengaluru.supportedDisruptions.map((profile) => profile.id), ["mangaluru-bengaluru-delay-01"]);
+  const udupi = body.journeys[2];
+  assert.equal(udupi.destination, "Udupi");
+  assert.deepEqual(udupi.items.map((item) => item.id), ["RAIL-E", "ACTIVITY-UDUPI-1", "HOTEL-UDUPI-1"]);
+  assert.deepEqual(udupi.supportedDisruptions.map((profile) => profile.id), ["mangaluru-udupi-rail-delay-01"]);
+  const chennai = body.journeys[3];
+  assert.equal(chennai.origin, "Bengaluru City");
+  assert.equal(chennai.destination, "Chennai Central");
+  assert.deepEqual(chennai.items.map((item) => item.id), ["RAIL-F", "RAIL-G", "ACTIVITY-CHENNAI-1", "HOTEL-CHENNAI-1"]);
+  assert.deepEqual(chennai.supportedDisruptions.map((profile) => profile.id), ["bengaluru-chennai-later-rail-delay-01"]);
+  assert.ok(body.journeys.every((journey) => journey.source === "SIMULATED"));
+});
+
+test("new journey trip endpoints return their canonical versioned fixtures", async () => {
+  for (const tripId of ["trip-mangaluru-udupi-01", "trip-bengaluru-chennai-01"]) {
+    const response = await tripOutcome(tripId);
+    assert.equal(response.status, 200);
+    const trip = response.body as { id: string; version: number; items: { id: string }[] };
+    assert.equal(trip.id, tripId);
+    assert.equal(trip.version, 1);
+    assert.ok(trip.items.length >= 3);
+  }
+});
+
+test("the new journeys calculate recovery feasibility and audit actual dependency and budget failures", async () => {
+  const udupi = await recoveryRunOutcome({ tripId: "trip-mangaluru-udupi-01", tripVersion: 1, disruption: { source: "SIMULATED", scenarioId: "mangaluru-udupi-rail-delay-01", bookingId: "RAIL-E", kind: "delay", delayMinutes: 60 } });
+  assert.equal(udupi.status, 200);
+  const udupiBody = udupi.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>;
+  assert.equal(udupiBody.status, "RECOVERED");
+  assert.deepEqual(udupiBody.candidates.filter((candidate) => candidate.feasible).map((candidate) => candidate.id), ["MU-A"]);
+  assert.equal(udupiBody.candidates.find((candidate) => candidate.id === "MU-B")?.connectionChecks.length, 0);
+  assert.ok(udupiBody.candidates.find((candidate) => candidate.id === "MU-B")?.violations.some((violation) => violation.kind === "WINDOW"));
+  assert.ok(udupiBody.candidates.find((candidate) => candidate.id === "MU-C")?.violations.some((violation) => violation.kind === "MAX_EXTRA_BUDGET"));
+
+  const chennai = await recoveryRunOutcome({ tripId: "trip-bengaluru-chennai-01", tripVersion: 1, disruption: { source: "SIMULATED", scenarioId: "bengaluru-chennai-later-rail-delay-01", bookingId: "RAIL-G", kind: "delay", delayMinutes: 90 } });
+  assert.equal(chennai.status, 200);
+  const chennaiBody = chennai.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>;
+  assert.equal(chennaiBody.status, "RECOVERED");
+  assert.deepEqual(chennaiBody.candidates.filter((candidate) => candidate.feasible).map((candidate) => candidate.id), ["BC-A"]);
+  const connectionFailure = chennaiBody.candidates.find((candidate) => candidate.id === "BC-B")!;
+  assert.ok(connectionFailure.violations.some((violation) => violation.kind === "CONNECTION"));
+  assert.ok(connectionFailure.dependencyChecks.some((check) => check.kind === "CONNECTION" && !check.passed));
+  const downstreamFailure = chennaiBody.candidates.find((candidate) => candidate.id === "BC-C")!;
+  assert.ok(downstreamFailure.violations.some((violation) => violation.kind === "WINDOW"));
+  assert.ok(chennaiBody.candidates.find((candidate) => candidate.id === "BC-D")?.violations.some((violation) => violation.kind === "MAX_EXTRA_BUDGET"));
+  assert.deepEqual(chennaiBody.decisionAudit.candidates.map((candidate) => candidate.candidateId), chennaiBody.candidates.map((candidate) => candidate.id));
+  assert.equal(new Set(chennaiBody.candidates.map((candidate) => candidate.id)).size, chennaiBody.candidates.length);
+  for (const candidate of chennaiBody.candidates.filter((candidate) => candidate.feasible)) assert.equal(candidate.violations.length, 0);
 });
 
 test("configurable delays validate declared range and alter canonical timing", async () => {
