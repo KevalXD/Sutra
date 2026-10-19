@@ -159,6 +159,8 @@ export interface JourneyCatalogueItem {
 export interface JourneyCatalogueEntry {
   tripId: string;
   tripVersion: number;
+  /** Every catalogue journey is synthetic fixture data, never live inventory. */
+  source: "SIMULATED";
   label: string;
   origin: string;
   destination: string;

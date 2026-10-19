@@ -237,6 +237,7 @@ export async function getJourneyCatalogue(): Promise<JourneyCatalogueResponse> {
     if (existing) { existing.supportedDisruptions.push(structuredClone(scenario.profile)); continue; }
     grouped.set(scenario.trip.id, {
       tripId: scenario.trip.id, tripVersion: scenario.trip.version,
+      source: "SIMULATED",
       label: `${firstTransport.legs[0].origin} to ${lastTransport.legs.at(-1)!.destination}`,
       origin: firstTransport.legs[0].origin, destination: lastTransport.legs.at(-1)!.destination,
       journeyDate: firstTransport.legs[0].departureAt.slice(0, 10), currency: scenario.trip.currency,
