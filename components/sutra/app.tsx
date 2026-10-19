@@ -21,7 +21,7 @@ const SCROLL_TARGET: Partial<Record<Phase, string>> = {
   RECOVERY_READY: "result", NO_FEASIBLE_RECOVERY: "result", TECHNICAL_ERROR: "error",
 };
 
-export function SutraApp({ scenario }: { scenario: ScenarioId }) {
+export function SutraApp({ scenario, landingOnly = false }: { scenario: ScenarioId; landingOnly?: boolean }) {
   const f = useRecoveryFlow(scenario);
   const { phase, trip, analysis, result } = f;
   const reduce = useReducedMotion();
@@ -92,25 +92,25 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
       <header className="fixed inset-x-0 top-0 z-40">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 md:px-8">
           <Link href="/" className="font-display text-[22px] font-semibold tracking-tight text-ink">Sutra</Link>
-          <nav aria-label="Demo scenario" className="hidden items-center gap-1 text-[13px] sm:flex">
+          {!landingOnly && <nav aria-label="Demo scenario" className="hidden items-center gap-1 text-[13px] sm:flex">
             <span className="mr-2 font-mono text-[11px] uppercase tracking-widest text-muted">Demo</span>
             {SCENARIOS.map(s => (
               <Link key={s.id} href={`/?scenario=${s.id}`} aria-current={scenario === s.id ? "page" : undefined}
                 className={`rounded-[10px] px-3 py-1.5 transition ${scenario === s.id ? "bg-soft text-ink" : "text-muted hover:text-ink"}`}>{s.label}</Link>
             ))}
-          </nav>
+          </nav>}
           <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted" aria-live="polite">
             <StatusMark status={phaseMark} size={16} label={phase} /><span className="hidden md:inline">{phase.replaceAll("_", " ")}</span>
           </div>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-6xl px-5 pb-40 md:px-8">
-        <Hero trip={trip} />
+      <main className={`relative z-10 mx-auto max-w-6xl px-5 md:px-8 ${landingOnly ? "pb-10" : "pb-40"}`}>
+        <Hero trip={trip} landingOnly={landingOnly} />
 
-        {phase === "TECHNICAL_ERROR" && f.error && !trip && <TechnicalErrorView error={f.error} onRetry={f.retryRecovery} />}
+        {!landingOnly && phase === "TECHNICAL_ERROR" && f.error && !trip && <TechnicalErrorView error={f.error} onRetry={f.retryRecovery} />}
 
-        {trip && (
+        {!landingOnly && trip && (
           <TracingBeam>
             <TripOverview trip={trip} diffs={tripDiffs} highlightId={highlightId} disruption={hasDisruption ? analysis!.disruption : undefined}
               cta={phase === "TRIP_LOADED" ? <Btn onClick={f.simulateDisruption}><Radar aria-hidden className="size-4" />Simulate disruption</Btn> : undefined} />
@@ -133,7 +133,7 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
 
       </main>
 
-      <FloatingDock stages={stages} action={next ? { label: next.label, onClick: next.run } : null} />
+      {!landingOnly && <FloatingDock stages={stages} action={next ? { label: next.label, onClick: next.run } : null} />}
     </div>
   );
 }

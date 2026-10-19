@@ -2,8 +2,9 @@
 import React from "react";
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
-import { RotateCcw, ServerCrash } from "lucide-react";
+import { ArrowRight, RotateCcw, ServerCrash } from "lucide-react";
 import type { ApiError, Booking, Diff, DisruptionAnalysis, Itinerary } from "@/lib/types";
 import { day, fmtDuration, formatMoney, hm } from "@/lib/format";
 import { placeName } from "@/lib/places";
@@ -45,7 +46,7 @@ const journeyCities = (bs: Booking[]) => {
 };
 
 /* ───────── Hero (parallax depth + Text Loop) ───────── */
-export function Hero({ trip }: { trip?: Itinerary }) {
+export function Hero({ trip, landingOnly = false }: { trip?: Itinerary; landingOnly?: boolean }) {
   const reduce = useReducedMotion();
   const cities = trip ? journeyCities(trip.bookings) : [];
   return (
@@ -62,9 +63,12 @@ export function Hero({ trip }: { trip?: Itinerary }) {
           <p className="mt-6 max-w-xl text-[17px] text-ink2">
             Sutra traces how one disruption ripples through connected bookings, checks every option against your constraints, and shows exactly what changed.
           </p>
-          <p className="mt-8 font-mono text-[13px] text-muted" role={trip ? undefined : "status"}>
+          <Link href="/recovery" className="mt-7 inline-flex items-center gap-2 rounded-[10px] bg-green px-5 py-2.5 text-[15px] font-medium text-bg transition hover:bg-green-bright">
+            Get Started <ArrowRight aria-hidden className="size-4" />
+          </Link>
+          {!landingOnly && <p className="mt-8 font-mono text-[13px] text-muted" role={trip ? undefined : "status"}>
             {trip ? `Demo trip · ${cities.map(placeName).join(" → ")} · ${day(trip.bookings[0].start)} 2026 · simulated data` : "Loading journey…"}
-          </p>
+          </p>}
         </div>
         <div className="relative z-10">
           <TravelGlobe reduceMotion={!!reduce} />

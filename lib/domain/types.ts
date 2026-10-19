@@ -114,8 +114,7 @@ export interface Dependency {
 
 export interface Disruption {
   source: "SIMULATED";
-  /** Legacy demo identifier; configurable requests are resolved by the backend profile. */
-  scenarioId?: string;
+  scenarioId: string;
   bookingId: string;
   kind: DisruptionKind;
   delayMinutes?: number;

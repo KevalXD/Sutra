@@ -1,5 +1,4 @@
 import type { Alternative, Disruption, Trip } from "../types";
-import { coastalAlternatives, coastalDisruption, coastalTrip } from "./coastal-rail-activity-01";
 import { goldenAlternatives, goldenDisruption, goldenTrip } from "./golden-rail-delay-01";
 
 const noFeasibleTrip: Trip = { ...structuredClone(goldenTrip), id: "trip-no-feasible-recovery-01" };
@@ -24,14 +23,13 @@ const technicalErrorDisruption: Disruption = { ...goldenDisruption, scenarioId: 
 
 export interface ScenarioFixture { id: string; trip: Trip; disruption: Disruption; alternatives: Alternative[]; failOnFirstAttempt?: true }
 export const recoveryScenarios: readonly ScenarioFixture[] = [
-  { id: goldenDisruption.scenarioId!, trip: goldenTrip, disruption: goldenDisruption, alternatives: goldenAlternatives },
-  { id: cancellationDisruption.scenarioId!, trip: goldenTrip, disruption: cancellationDisruption, alternatives: cancellationAlternatives },
-  { id: cancellationNoRecoveryDisruption.scenarioId!, trip: goldenTrip, disruption: cancellationNoRecoveryDisruption, alternatives: cancellationNoRecoveryAlternatives },
-  { id: noFeasibleDisruption.scenarioId!, trip: noFeasibleTrip, disruption: noFeasibleDisruption, alternatives: noFeasibleAlternatives },
-  { id: technicalErrorDisruption.scenarioId!, trip: goldenTrip, disruption: technicalErrorDisruption, alternatives: goldenAlternatives, failOnFirstAttempt: true },
-  { id: coastalDisruption.scenarioId!, trip: coastalTrip, disruption: coastalDisruption, alternatives: coastalAlternatives },
+  { id: goldenDisruption.scenarioId, trip: goldenTrip, disruption: goldenDisruption, alternatives: goldenAlternatives },
+  { id: cancellationDisruption.scenarioId, trip: goldenTrip, disruption: cancellationDisruption, alternatives: cancellationAlternatives },
+  { id: cancellationNoRecoveryDisruption.scenarioId, trip: goldenTrip, disruption: cancellationNoRecoveryDisruption, alternatives: cancellationNoRecoveryAlternatives },
+  { id: noFeasibleDisruption.scenarioId, trip: noFeasibleTrip, disruption: noFeasibleDisruption, alternatives: noFeasibleAlternatives },
+  { id: technicalErrorDisruption.scenarioId, trip: goldenTrip, disruption: technicalErrorDisruption, alternatives: goldenAlternatives, failOnFirstAttempt: true },
 ];
 export const scenarioById = (id: string) => recoveryScenarios.find((scenario) => scenario.id === id);
 export const tripById = (id: string) => recoveryScenarios.find((scenario) => scenario.trip.id === id)?.trip;
-export const demoScenarioFor = (scenario: "delay" | "cancellation" | "infeasible" | "error") => scenarioById({ delay: goldenDisruption.scenarioId!, cancellation: cancellationDisruption.scenarioId!, infeasible: noFeasibleDisruption.scenarioId!, error: technicalErrorDisruption.scenarioId! }[scenario])!;
-export const cancellationNoRecoveryScenario = scenarioById(cancellationNoRecoveryDisruption.scenarioId!)!;
+export const demoScenarioFor = (scenario: "delay" | "cancellation" | "infeasible" | "error") => scenarioById({ delay: goldenDisruption.scenarioId, cancellation: cancellationDisruption.scenarioId, infeasible: noFeasibleDisruption.scenarioId, error: technicalErrorDisruption.scenarioId }[scenario])!;
+export const cancellationNoRecoveryScenario = scenarioById(cancellationNoRecoveryDisruption.scenarioId)!;

@@ -1,5 +1,4 @@
 import { scenarioById, tripById } from "@/lib/domain/fixtures/recovery-scenarios";
-import { catalogue, profileForInput } from "@/lib/domain/fixtures/journey-catalogue";
 import type { Alternative, CandidateDecisionAudit, ConnectionCheck, ConstraintEvaluation, ConstraintOverrides, ConstraintViolation, DecisionAudit, Disruption, GeneratedRecoveryCandidate, ImpactAnalysis, ImpactState, ItemTiming, RecoveryChange, RecoveryPlan, RecoveryRecommendation, RecoveryRunRequest, RecoveryRunResult, TravellerAction, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
 import { validateAiRecommendation, type RecommendationDraft } from "./recommendation";
 
@@ -178,7 +177,7 @@ function plan(trip: Trip, impact: ImpactAnalysis, candidate: ValidatedRecoveryCa
 function actions(planValue: RecoveryPlan, candidate: ValidatedRecoveryCandidate): TravellerAction[] { return candidate.alternatives.map((alternative, index) => ({ id: `ACT-${index + 1}`, kind: "BOOK_REPLACEMENT", itemId: alternative.replacementForBookingId, description: `Book simulated replacement ${alternative.id}.`, automated: false })); }
 export function parseRequest(body: unknown): RecoveryRunRequest {
   const value = body as Record<string, unknown>; const disruption = value?.disruption as Record<string, unknown>;
-  if (!value || typeof value.tripId !== "string" || !Number.isInteger(value.tripVersion) || !disruption || disruption.source !== "SIMULATED" || (disruption.scenarioId !== undefined && typeof disruption.scenarioId !== "string") || typeof disruption.bookingId !== "string" || (disruption.kind !== "delay" && disruption.kind !== "cancellation")) throw new RecoveryInputError("INVALID_REQUEST", "Invalid recovery-run request.");
+  if (!value || typeof value.tripId !== "string" || !Number.isInteger(value.tripVersion) || !disruption || disruption.source !== "SIMULATED" || typeof disruption.scenarioId !== "string" || typeof disruption.bookingId !== "string" || (disruption.kind !== "delay" && disruption.kind !== "cancellation")) throw new RecoveryInputError("INVALID_REQUEST", "Invalid recovery-run request.");
   if (disruption.delayMinutes !== undefined && (!Number.isInteger(disruption.delayMinutes) || (disruption.kind === "delay" && (disruption.delayMinutes as number) <= 0))) throw new RecoveryInputError("INVALID_REQUEST", "Invalid delayMinutes.");
   if (value.demoAttempt !== undefined && (!Number.isInteger(value.demoAttempt) || (value.demoAttempt as number) < 0)) throw new RecoveryInputError("INVALID_REQUEST", "Invalid demoAttempt.");
   const constraintOverrides = parseOverrides(value.constraintOverrides);
@@ -188,24 +187,21 @@ export async function getTrip(tripId: string) {
   const trip = tripById(tripId);
   return trip ? structuredClone(trip) : null;
 }
-export function getJourneyCatalogue() { return catalogue(); }
 export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDeps = {}): Promise<RecoveryRunResult> {
   const baselineTrip = await getTrip(request.tripId); if (!baselineTrip) throw new RecoveryInputError("TRIP_NOT_FOUND", `Trip ${request.tripId} was not found.`); if (baselineTrip.version !== request.tripVersion) throw new RecoveryInputError("STALE_TRIP_VERSION", `Trip is at version ${baselineTrip.version}.`);
   const trip: Trip = { ...baselineTrip, constraints: { ...baselineTrip.constraints, ...request.constraintOverrides } };
-  const scenario = request.disruption.scenarioId ? scenarioById(request.disruption.scenarioId) : undefined;
-  const profile = scenario ?? profileForInput({ ...request.disruption, tripId: trip.id });
-  if (!profile || (scenario && (scenario.trip.id !== trip.id || scenario.disruption.bookingId !== request.disruption.bookingId || scenario.disruption.kind !== request.disruption.kind || scenario.disruption.delayMinutes !== request.disruption.delayMinutes))) {
-    throw new RecoveryInputError("DOMAIN_REJECTED", "The simulated disruption does not match a supported journey profile or duration.");
+  const scenario = scenarioById(request.disruption.scenarioId);
+  if (!scenario || scenario.trip.id !== trip.id || scenario.disruption.bookingId !== request.disruption.bookingId || scenario.disruption.kind !== request.disruption.kind || scenario.disruption.delayMinutes !== request.disruption.delayMinutes) {
+    throw new RecoveryInputError("DOMAIN_REJECTED", "The simulated disruption does not match a supported deterministic scenario.");
   }
-  const disruption = { ...request.disruption, scenarioId: profile.id };
-  const impact = analyzeImpact(trip, disruption);
+  const impact = analyzeImpact(trip, request.disruption);
   let alternatives: Alternative[];
   try {
-    if (scenario?.failOnFirstAttempt && (request.demoAttempt ?? 0) === 0) throw new TechnicalFailure("SIMULATED_TRANSPORT_ADAPTER_OUTAGE", "The simulated rail adapter is temporarily unavailable.");
-    alternatives = deps.findAlternatives ? await deps.findAlternatives({ trip, disruption, impact }) : structuredClone(profile.alternatives);
+    if (scenario.failOnFirstAttempt && (request.demoAttempt ?? 0) === 0) throw new TechnicalFailure("SIMULATED_TRANSPORT_ADAPTER_OUTAGE", "The simulated rail adapter is temporarily unavailable.");
+    alternatives = deps.findAlternatives ? await deps.findAlternatives({ trip, disruption: request.disruption, impact }) : structuredClone(scenario.alternatives);
   }
   catch (error) { throw error instanceof TechnicalFailure ? error : new TechnicalFailure("TRANSPORT_ADAPTER_FAILED", error instanceof Error ? error.message : "Transport adapter failed."); }
-  const candidates = alternatives.map((x) => candidateFor(trip, disruption, impact, x)).map((x) => validate(trip, impact, x)); const runId = `run-${disruption.scenarioId}-v${trip.version}`; const base = { runId, tripVersion: trip.version, impact, candidates, effectiveConstraints: structuredClone(trip.constraints) };
+  const candidates = alternatives.map((x) => candidateFor(trip, request.disruption, impact, x)).map((x) => validate(trip, impact, x)); const runId = `run-${request.disruption.scenarioId}-v${trip.version}`; const base = { runId, tripVersion: trip.version, impact, candidates, effectiveConstraints: structuredClone(trip.constraints) };
   if (!candidates.some((x) => x.feasible)) return { ...base, status: "NO_FEASIBLE_RECOVERY", recommendation: null, recoveryPlan: null, actions: [], decisionAudit: auditFor(runId, "NO_FEASIBLE_RECOVERY", "NONE", null, trip.constraints, trip, impact, candidates) };
   const feasible = candidates.filter((candidate) => candidate.feasible);
   let recommendation: RecoveryRecommendation | undefined;

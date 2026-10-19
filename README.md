@@ -67,32 +67,6 @@ Keys are read only by the API route and are never included in browser code or re
 
 Every successful or no-feasible recovery response includes a backend-authored `decisionAudit`. It records the effective traveller constraints, the decision status and source, the selected candidate when one exists, and each candidate's checked rules and violations. The frontend renders this audit directly, so changing the deadline, budget, or overnight preference triggers a fresh authoritative evaluation instead of a local feasibility guess. Technical failures remain separate from no-feasible outcomes and preserve their error code for retry and diagnostics.
 
-## Configurable simulated journeys
-
-The backend exposes `GET /api/v1/trips` as a catalogue of supported simulated journeys. Each entry includes the canonical trip ID/version, transport items, supported disruption profiles, and allowed delay values. Load the selected journey with `GET /api/v1/trips/:tripId`.
-
-Submit a configurable recovery by omitting the legacy `scenarioId` and sending the selected trip, version, transport booking, disruption kind, optional supported delay, and constraint overrides to `POST /api/v1/recovery-runs`:
-
-```json
-{
-  "tripId": "trip-coastal-rail-activity-01",
-  "tripVersion": 1,
-  "disruption": {
-    "source": "SIMULATED",
-    "bookingId": "COASTAL-A",
-    "kind": "delay",
-    "delayMinutes": 120
-  },
-  "constraintOverrides": {
-    "latestArrivalAt": "2026-12-04T18:00:00",
-    "maxExtraBudget": 400,
-    "noOvernight": true
-  }
-}
-```
-
-The server resolves the offer pool and recalculates impact, connections, feasibility, recommendation source, audit, plan, and actions. The browser cannot submit candidate facts. Existing scenario IDs remain supported for the demo launches, and all route and offer data is explicitly simulated.
-
 ## Check the current changes
 
 From the project folder, run:

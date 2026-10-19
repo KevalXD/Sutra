@@ -3,34 +3,9 @@ import test from "node:test";
 import { goldenDisruption, goldenTrip } from "@/lib/domain/fixtures/golden-rail-delay-01";
 import { cancellationNoRecoveryScenario, demoScenarioFor } from "@/lib/domain/fixtures/recovery-scenarios";
 import { recoveryRunOutcome, tripOutcome } from "@/lib/recovery/http";
-import { getJourneyCatalogue } from "@/lib/recovery/core";
 import type { RecoveryRunResult } from "@/lib/domain/types";
 
 const request = () => ({ tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: goldenDisruption });
-
-test("journey catalogue exposes backend-owned simulated profiles", () => {
-  const journeys = getJourneyCatalogue();
-  assert.deepEqual(journeys.map((journey) => journey.tripId), [goldenTrip.id, "trip-coastal-rail-activity-01"]);
-  assert.equal(journeys.every((journey) => journey.simulated), true);
-  assert.deepEqual(journeys[0].supportedDisruptions.find((value) => value.kind === "delay")?.delayMinutes, [30, 60, 90, 120, 150, 180]);
-});
-
-test("configurable requests resolve a distinct journey without a legacy scenario id", async () => {
-  const response = await recoveryRunOutcome({ tripId: "trip-coastal-rail-activity-01", tripVersion: 1, disruption: { source: "SIMULATED", bookingId: "COASTAL-A", kind: "delay", delayMinutes: 120 } });
-  assert.equal(response.status, 200);
-  const body = response.body as { status: string; runId: string; impact: { affectedItemIds: string[] }; recommendation: { selectedCandidateId: string } | null; candidates: { id: string; feasible: boolean }[] };
-  assert.equal(body.status, "RECOVERED");
-  assert.match(body.runId, /coastal-rail-activity-01/);
-  assert.deepEqual(body.impact.affectedItemIds, ["COASTAL-B", "BACKWATER-TOUR"]);
-  assert.equal(body.recommendation?.selectedCandidateId, "CA-C");
-  assert.equal(body.candidates.find((candidate) => candidate.id === "CA-A")?.feasible, false);
-});
-
-test("configurable requests reject unsupported duration and non-member bookings", async () => {
-  const base = { tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: { source: "SIMULATED", bookingId: "RAIL-A", kind: "delay" } };
-  assert.equal((await recoveryRunOutcome({ ...base, disruption: { ...base.disruption, delayMinutes: 45 } })).status, 422);
-  assert.equal((await recoveryRunOutcome({ ...base, disruption: { ...base.disruption, bookingId: "UNKNOWN", delayMinutes: 120 } })).status, 422);
-});
 
 test("root trip endpoint returns the canonical versioned trip", async () => {
   const response = await tripOutcome(goldenTrip.id);
