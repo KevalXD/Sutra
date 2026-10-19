@@ -20,6 +20,7 @@ const noFeasibleAlternatives: Alternative[] = [
   { id: "NF-C-ALT", replacementForBookingId: "RAIL-B", departureAt: "2026-11-10T15:30:00", arrivalAt: "2026-11-10T17:45:00", extraCost: 700, source: "SIMULATED_OFFER" },
 ];
 const technicalErrorDisruption: Disruption = { ...goldenDisruption, scenarioId: "technical-error-retry-01" };
+const goldenRailBDisruption: Disruption = { source: "SIMULATED", scenarioId: "golden-rail-b-delay-01", bookingId: "RAIL-B", kind: "delay", delayMinutes: 120 };
 
 const bengaluruTrip: Trip = {
   id: "trip-mangaluru-bengaluru-01", version: 1, currency: "INR",
@@ -44,6 +45,7 @@ const bengaluruAlternatives: Alternative[] = [
   { id: "MB-B-ALT", replacementForBookingId: "RAIL-D", departureAt: "2026-11-12T14:30:00", arrivalAt: "2026-11-12T17:30:00", extraCost: 250, source: "SIMULATED_OFFER" },
   { id: "MB-C-ALT", replacementForBookingId: "RAIL-D", departureAt: "2026-11-12T15:30:00", arrivalAt: "2026-11-12T19:30:00", extraCost: 100, source: "SIMULATED_OFFER" },
 ];
+const bengaluruRailDDisruption: Disruption = { source: "SIMULATED", scenarioId: "mangaluru-bengaluru-rail-d-delay-01", bookingId: "RAIL-D", kind: "delay", delayMinutes: 90 };
 
 const udupiTrip: Trip = {
   id: "trip-mangaluru-udupi-01", version: 1, currency: "INR",
@@ -90,6 +92,14 @@ const chennaiAlternatives: Alternative[] = [
   { id: "BC-C-ALT", replacementForBookingId: "RAIL-G", departureAt: "2026-11-16T13:10:00", arrivalAt: "2026-11-16T16:55:00", extraCost: 150, source: "SIMULATED_OFFER" },
   { id: "BC-D-ALT", replacementForBookingId: "RAIL-G", departureAt: "2026-11-16T13:00:00", arrivalAt: "2026-11-16T15:35:00", extraCost: 750, source: "SIMULATED_OFFER" },
 ];
+const chennaiRailFDisruption: Disruption = { source: "SIMULATED", scenarioId: "bengaluru-jolarpet-rail-f-delay-01", bookingId: "RAIL-F", kind: "delay", delayMinutes: 90 };
+/** Synthetic same-day Bengaluru–Jolarpet replacements; not live railway inventory. */
+const chennaiRailFAlternatives: Alternative[] = [
+  { id: "BF-A-ALT", replacementForBookingId: "RAIL-F", departureAt: "2026-11-16T08:45:00", arrivalAt: "2026-11-16T12:15:00", extraCost: 350, source: "SIMULATED_OFFER" },
+  { id: "BF-B-ALT", replacementForBookingId: "RAIL-F", departureAt: "2026-11-16T08:35:00", arrivalAt: "2026-11-16T12:25:00", extraCost: 250, source: "SIMULATED_OFFER" },
+  { id: "BF-C-ALT", replacementForBookingId: "RAIL-F", departureAt: "2026-11-16T09:00:00", arrivalAt: "2026-11-16T12:40:00", extraCost: 180, source: "SIMULATED_OFFER" },
+  { id: "BF-D-ALT", replacementForBookingId: "RAIL-F", departureAt: "2026-11-16T08:40:00", arrivalAt: "2026-11-16T12:10:00", extraCost: 650, source: "SIMULATED_OFFER" },
+];
 
 export interface ScenarioFixture { id: string; trip: Trip; disruption: Disruption; alternatives: Alternative[]; profile?: SupportedDisruptionProfile; failOnFirstAttempt?: true }
 export const recoveryScenarios: readonly ScenarioFixture[] = [
@@ -98,9 +108,12 @@ export const recoveryScenarios: readonly ScenarioFixture[] = [
   { id: cancellationNoRecoveryDisruption.scenarioId, trip: goldenTrip, disruption: cancellationNoRecoveryDisruption, alternatives: cancellationNoRecoveryAlternatives },
   { id: noFeasibleDisruption.scenarioId, trip: noFeasibleTrip, disruption: noFeasibleDisruption, alternatives: noFeasibleAlternatives },
   { id: technicalErrorDisruption.scenarioId, trip: goldenTrip, disruption: technicalErrorDisruption, alternatives: goldenAlternatives, failOnFirstAttempt: true },
+  { id: goldenRailBDisruption.scenarioId, trip: goldenTrip, disruption: goldenRailBDisruption, alternatives: goldenAlternatives, profile: { id: goldenRailBDisruption.scenarioId, label: "Rail B delay", bookingId: "RAIL-B", bookingLabel: "Rail B", kind: "delay", delayRange: { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 } } },
   { id: bengaluruDisruption.scenarioId, trip: bengaluruTrip, disruption: bengaluruDisruption, alternatives: bengaluruAlternatives, profile: { id: bengaluruDisruption.scenarioId, label: "Rail C delay", bookingId: "RAIL-C", bookingLabel: "Rail C", kind: "delay", delayRange: { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 } } },
+  { id: bengaluruRailDDisruption.scenarioId, trip: bengaluruTrip, disruption: bengaluruRailDDisruption, alternatives: bengaluruAlternatives, profile: { id: bengaluruRailDDisruption.scenarioId, label: "Rail D delay", bookingId: "RAIL-D", bookingLabel: "Rail D", kind: "delay", delayRange: { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 } } },
   { id: udupiDisruption.scenarioId, trip: udupiTrip, disruption: udupiDisruption, alternatives: udupiAlternatives, profile: { id: udupiDisruption.scenarioId, label: "Mangaluru–Udupi rail delay", bookingId: "RAIL-E", bookingLabel: "Simulated Mangaluru–Udupi rail", kind: "delay", delayRange: { minimumMinutes: 30, maximumMinutes: 120, stepMinutes: 30 } } },
   { id: chennaiDisruption.scenarioId, trip: chennaiTrip, disruption: chennaiDisruption, alternatives: chennaiAlternatives, profile: { id: chennaiDisruption.scenarioId, label: "Jolarpet–Chennai rail delay", bookingId: "RAIL-G", bookingLabel: "Simulated Jolarpet–Chennai rail", kind: "delay", delayRange: { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 } } },
+  { id: chennaiRailFDisruption.scenarioId, trip: chennaiTrip, disruption: chennaiRailFDisruption, alternatives: chennaiRailFAlternatives, profile: { id: chennaiRailFDisruption.scenarioId, label: "Bengaluru–Jolarpet rail delay", bookingId: "RAIL-F", bookingLabel: "Simulated Bengaluru–Jolarpet rail", kind: "delay", delayRange: { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 } } },
 ];
 export const scenarioById = (id: string) => recoveryScenarios.find((scenario) => scenario.id === id);
 export const tripById = (id: string) => recoveryScenarios.find((scenario) => scenario.trip.id === id)?.trip;

@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { ApiError, GoogleGenAI } from "@google/genai";
 import type { ImpactAnalysis, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
 import { AI_RECOMMENDATION_BUDGET_MS, RecommendationProviderError } from "./core";
 import { recommendationContext, recommendationJsonSchema, type RecommendationDraft } from "./recommendation";
@@ -6,6 +6,30 @@ import { recommendationContext, recommendationJsonSchema, type RecommendationDra
 type GeminiResponse = { text?: string };
 export interface GeminiClient { models: { generateContent(input: unknown): Promise<GeminiResponse> } }
 export interface GeminiRecommendationProviderOptions { apiKey: string; model: string; timeoutMs?: number; fetchFn?: typeof fetch; client?: GeminiClient }
+
+type SafeGeminiErrorName = "ApiError" | "APIConnectionError" | "ConnectionError" | "RequestTimeoutError" | "TypeError" | "Unknown";
+
+/**
+ * The installed @google/genai 2.28.0 SDK documents ApiError.status. Its
+ * connection errors expose no HTTP status, so retain only a whitelisted class
+ * name. Do not propagate raw messages: SDK API messages can include response
+ * bodies and connection causes can include host details.
+ */
+function classifyGeminiError(error: unknown): RecommendationProviderError {
+  if (error instanceof ApiError) {
+    const status = error.status;
+    const category = status === 401 || status === 403 ? "PROVIDER_AUTHENTICATION_ERROR"
+      : status === 404 ? "PROVIDER_MODEL_UNAVAILABLE"
+        : status === 429 ? "PROVIDER_QUOTA_ERROR"
+          : "PROVIDER_API_ERROR";
+    return new RecommendationProviderError(category, "Gemini API request failed.", status, "ApiError");
+  }
+  const name = error instanceof Error ? error.name : "Unknown";
+  const safeName: SafeGeminiErrorName = name === "APIConnectionError" || name === "ConnectionError" || name === "RequestTimeoutError" || name === "TypeError" ? name : "Unknown";
+  if (safeName === "RequestTimeoutError") return new RecommendationProviderError("PROVIDER_TIMEOUT", "Gemini request timed out.", undefined, safeName);
+  if (safeName === "APIConnectionError" || safeName === "ConnectionError" || safeName === "TypeError") return new RecommendationProviderError("PROVIDER_NETWORK_ERROR", "Gemini connection failed.", undefined, safeName);
+  return new RecommendationProviderError("PROVIDER_API_ERROR", "Gemini request failed.", undefined, safeName);
+}
 
 /** Leave a small margin for the recovery layer to fall back after the SDK aborts. */
 export const GEMINI_REQUEST_TIMEOUT_MS = AI_RECOMMENDATION_BUDGET_MS - 500;
@@ -30,8 +54,7 @@ export class GeminiRecommendationProvider {
     try {
       response = await this.client.models.generateContent({ model: this.options.model, contents: `Choose only from the supplied feasible recovery candidates. If activePriority is supplied, select its deterministic best candidate. Return structured facts exactly as supplied. Do not claim booking, purchase, availability, or feasibility.\n${JSON.stringify(recommendationContext(input.trip, input.impact, input.feasibleCandidates, input.activePriority))}`, config: { responseMimeType: "application/json", responseJsonSchema: recommendationJsonSchema } });
     } catch (error) {
-      const status = typeof (error as { status?: unknown })?.status === "number" ? (error as { status: number }).status : undefined;
-      throw new RecommendationProviderError("PROVIDER_API_ERROR", "Gemini request failed.", status);
+      throw classifyGeminiError(error);
     }
     if (!response.text) throw new RecommendationProviderError("PROVIDER_RESPONSE_PARSE_ERROR", "Gemini returned no structured output.");
     let parsed: Record<string, unknown>;

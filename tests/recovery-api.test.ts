@@ -23,7 +23,7 @@ test("journey catalogue exposes only supported selectable journeys and profiles"
   assert.equal(golden.origin, "Mangaluru Central");
   assert.equal(golden.destination, "Mysuru Junction");
   assert.equal(golden.tripVersion, 1);
-  assert.deepEqual(golden.supportedDisruptions.map((profile) => profile.id), ["golden-rail-delay-01", "rail-cancellation-01"]);
+  assert.deepEqual(golden.supportedDisruptions.map((profile) => profile.id), ["golden-rail-delay-01", "rail-cancellation-01", "golden-rail-b-delay-01"]);
   assert.deepEqual(golden.supportedDisruptions[0].delayRange, { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 });
   assert.equal(golden.items[0].departureAt, "2026-11-10T09:00:00");
   assert.equal(golden.items[2].location, "Mysuru");
@@ -32,7 +32,7 @@ test("journey catalogue exposes only supported selectable journeys and profiles"
   const bengaluru = body.journeys[1];
   assert.equal(bengaluru.destination, "Bengaluru City");
   assert.deepEqual(bengaluru.items.map((item) => item.id), ["RAIL-C", "RAIL-D", "ACTIVITY-1", "HOTEL-2"]);
-  assert.deepEqual(bengaluru.supportedDisruptions.map((profile) => profile.id), ["mangaluru-bengaluru-delay-01"]);
+  assert.deepEqual(bengaluru.supportedDisruptions.map((profile) => profile.id), ["mangaluru-bengaluru-delay-01", "mangaluru-bengaluru-rail-d-delay-01"]);
   const udupi = body.journeys[2];
   assert.equal(udupi.destination, "Udupi");
   assert.deepEqual(udupi.items.map((item) => item.id), ["RAIL-E", "ACTIVITY-UDUPI-1", "HOTEL-UDUPI-1"]);
@@ -41,7 +41,7 @@ test("journey catalogue exposes only supported selectable journeys and profiles"
   assert.equal(chennai.origin, "Bengaluru City");
   assert.equal(chennai.destination, "Chennai Central");
   assert.deepEqual(chennai.items.map((item) => item.id), ["RAIL-F", "RAIL-G", "ACTIVITY-CHENNAI-1", "HOTEL-CHENNAI-1"]);
-  assert.deepEqual(chennai.supportedDisruptions.map((profile) => profile.id), ["bengaluru-chennai-later-rail-delay-01"]);
+  assert.deepEqual(chennai.supportedDisruptions.map((profile) => profile.id), ["bengaluru-chennai-later-rail-delay-01", "bengaluru-jolarpet-rail-f-delay-01"]);
   assert.ok(body.journeys.every((journey) => journey.source === "SIMULATED"));
 });
 

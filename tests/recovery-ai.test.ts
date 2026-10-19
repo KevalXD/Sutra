@@ -99,6 +99,20 @@ test("OpenAI adapter sends only feasible facts and parses a strict structured se
   assert.equal(JSON.stringify(requestBody).includes("test-key"), false);
 });
 
+test("OpenAI HTTP, malformed output, and adapter timeout retain distinct safe fallback diagnostics", async () => {
+  const cases = [
+    [new OpenAiRecommendationProvider({ apiKey: "test-key", model: "test-model", fetchFn: async () => new Response("unavailable", { status: 503 }) }), { category: "PROVIDER_API_ERROR", httpStatus: 503 }],
+    [new OpenAiRecommendationProvider({ apiKey: "test-key", model: "test-model", fetchFn: async () => new Response(JSON.stringify({ output_text: "not-json" }), { status: 200 }) }), { category: "PROVIDER_RESPONSE_PARSE_ERROR" }],
+    [new OpenAiRecommendationProvider({ apiKey: "test-key", model: "test-model", timeoutMs: 10, fetchFn: async () => new Promise<Response>(() => undefined) }), { category: "PROVIDER_TIMEOUT" }],
+  ] as const;
+  for (const [recommender, expected] of cases) {
+    const diagnostics: unknown[] = [];
+    const result = await runRecovery(request(), { recommender, recommendationTimeoutMs: 100, onRecommendationDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
+    assert.equal(result.status === "RECOVERED" && result.recommendation.decisionSource, "DETERMINISTIC_FALLBACK");
+    assert.deepEqual(diagnostics, [expected]);
+  }
+});
+
 test("missing OpenAI configuration leaves the provider unconfigured", () => {
   const previous = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;

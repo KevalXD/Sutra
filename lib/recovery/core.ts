@@ -7,11 +7,13 @@ export class RecoveryInputError extends Error {
 }
 export class TechnicalFailure extends Error { constructor(public readonly code: string, message: string) { super(message); } }
 export class RecommendationProviderError extends Error {
-  constructor(public readonly category: "PROVIDER_API_ERROR" | "PROVIDER_RESPONSE_PARSE_ERROR" | "PROVIDER_TIMEOUT", message: string, public readonly httpStatus?: number) { super(message); }
+  constructor(public readonly category: "PROVIDER_AUTHENTICATION_ERROR" | "PROVIDER_MODEL_UNAVAILABLE" | "PROVIDER_QUOTA_ERROR" | "PROVIDER_API_ERROR" | "PROVIDER_NETWORK_ERROR" | "PROVIDER_RESPONSE_PARSE_ERROR" | "PROVIDER_TIMEOUT", message: string, public readonly httpStatus?: number, public readonly providerErrorName?: string) { super(message); }
 }
 export type RecommendationDiagnostic = {
-  category: "PROVIDER_API_ERROR" | "PROVIDER_RESPONSE_PARSE_ERROR" | "PROVIDER_TIMEOUT" | "PROVIDER_FAILURE" | "POST_VALIDATION_REJECTED";
+  category: "PROVIDER_AUTHENTICATION_ERROR" | "PROVIDER_MODEL_UNAVAILABLE" | "PROVIDER_QUOTA_ERROR" | "PROVIDER_API_ERROR" | "PROVIDER_NETWORK_ERROR" | "PROVIDER_RESPONSE_PARSE_ERROR" | "PROVIDER_TIMEOUT" | "PROVIDER_FAILURE" | "POST_VALIDATION_REJECTED";
   httpStatus?: number;
+  /** Whitelisted SDK error class only; raw provider messages, headers, and causes are never logged. */
+  providerErrorName?: "ApiError" | "APIConnectionError" | "ConnectionError" | "RequestTimeoutError" | "TypeError" | "Unknown";
   rejection?: string;
 };
 export interface RecommendationProvider {
@@ -302,7 +304,7 @@ export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDep
       recommendation = validated.recommendation;
       if (!recommendation) deps.onRecommendationDiagnostic?.({ category: "POST_VALIDATION_REJECTED", rejection: validated.rejection });
     } catch (error) {
-      if (error instanceof RecommendationProviderError) deps.onRecommendationDiagnostic?.({ category: error.category, ...(error.httpStatus === undefined ? {} : { httpStatus: error.httpStatus }) });
+      if (error instanceof RecommendationProviderError) deps.onRecommendationDiagnostic?.({ category: error.category, ...(error.httpStatus === undefined ? {} : { httpStatus: error.httpStatus }), ...(error.providerErrorName === undefined ? {} : { providerErrorName: error.providerErrorName as RecommendationDiagnostic["providerErrorName"] }) });
       else deps.onRecommendationDiagnostic?.({ category: "PROVIDER_FAILURE" });
     }
   }
