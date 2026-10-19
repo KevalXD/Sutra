@@ -4,7 +4,11 @@ import type { Booking, Diff, ViolationKind } from "./types";
 
 export const formatMoney = (n: number, currency: string) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
-export const hm = (iso: string) => iso.slice(11, 16);
+export const hm = (iso: string) => {
+  const hour = Number(iso.slice(11, 13));
+  const minute = iso.slice(14, 16);
+  return `${hour % 12 || 12}:${minute} ${hour >= 12 ? "PM" : "AM"}`;
+};
 export const day = (iso: string) => {
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });

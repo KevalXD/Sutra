@@ -1,8 +1,10 @@
-import { SutraApp } from "@/components/sutra/app";
-import { parseScenario } from "@/lib/scenario";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { SiteNav } from "@/components/sutra/site-nav";
+import { LandingGlobe } from "@/components/sutra/landing-globe";
+import { Grainient } from "@/components/sutra/grainient";
+import { Meteors } from "@/components/ui/meteors";
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ scenario?: string }> }) {
-  const { scenario } = await searchParams;
-  const s = parseScenario(scenario);
-  return <SutraApp key={s} scenario={s} />;
+export default function Page() {
+  return <div className="relative isolate min-h-screen overflow-hidden bg-bg text-ink"><Grainient color1="#07110e" color2="#123f32" color3="#172b46" timeSpeed={0.25} noiseScale={2} grainAmount={0.1} zoom={0.9} /><div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden"><div className="sutra-starfield" /><Meteors number={30} /></div><div className="relative z-10"><SiteNav active="home" /><main className="mx-auto flex min-h-[calc(100svh-73px)] max-w-6xl items-start px-5 py-5 md:px-8 md:py-8"><div className="grid w-full items-start gap-3 lg:grid-cols-[1.05fr_.95fr]"><section aria-labelledby="home-title" className="pt-2 md:pt-5"><p className="font-mono text-xs uppercase tracking-[0.18em] text-green-bright">Travel disruption recovery</p><h1 id="home-title" className="mt-4 max-w-3xl font-display text-[clamp(2.35rem,5vw,4.5rem)] font-semibold leading-[.98] tracking-[-.045em]">When travel breaks, Sutra helps repair the journey.</h1><p className="mt-5 max-w-xl text-base leading-relaxed text-ink2">Understand what a delay or cancellation affects, then compare travel options that fit the way you need to travel.</p><div className="mt-6 flex flex-wrap items-center gap-3"><Link href="/workbench" className="inline-flex items-center gap-2 rounded-xl bg-green px-5 py-3 font-medium text-bg transition hover:bg-green-bright">Get started <ArrowRight className="size-4" /></Link><Link href="/how-it-works" className="rounded-xl border border-line px-5 py-3 text-sm text-ink2 hover:border-line-strong hover:text-ink">How it works</Link></div><p className="mt-4 text-sm text-muted">Uses simulated journeys for now. Sutra does not book tickets.</p></section><div className="relative -mt-4 md:-mt-8 lg:col-start-2"><LandingGlobe /></div></div></main></div></div>;
 }
