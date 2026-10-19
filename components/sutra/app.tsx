@@ -95,7 +95,7 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
           <nav aria-label="Demo scenario" className="hidden items-center gap-1 text-[13px] sm:flex">
             <span className="mr-2 font-mono text-[11px] uppercase tracking-widest text-muted">Demo</span>
             {SCENARIOS.map(s => (
-              <Link key={s.id} href={`/?scenario=${s.id}`} aria-current={scenario === s.id ? "page" : undefined}
+              <Link key={s.id} href={`/demo?scenario=${s.id}`} aria-current={scenario === s.id ? "page" : undefined}
                 className={`rounded-[10px] px-3 py-1.5 transition ${scenario === s.id ? "bg-soft text-ink" : "text-muted hover:text-ink"}`}>{s.label}</Link>
             ))}
           </nav>

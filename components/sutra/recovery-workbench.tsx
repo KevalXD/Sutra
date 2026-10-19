@@ -95,7 +95,7 @@ export function RecoveryWorkbench() {
   return <main className="min-h-screen bg-bg px-5 py-8 text-ink md:px-8">
     <div className="mx-auto max-w-6xl pb-20">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-6">
-        <div><Link href="/" className="inline-flex items-center gap-2 text-[14px] text-muted hover:text-ink"><ArrowLeft className="size-4" />Back to demos</Link><h1 className="mt-4 font-display text-4xl font-semibold">Plan a recovery</h1><p className="mt-2 max-w-3xl text-ink2">Choose a simulated journey and see the travel option Sutra recommends.</p></div>
+        <div><Link href="/" className="inline-flex items-center gap-2 text-[14px] text-muted hover:text-ink"><ArrowLeft className="size-4" />Back home</Link><h1 className="mt-4 font-display text-4xl font-semibold">Plan a recovery</h1><p className="mt-2 max-w-3xl text-ink2">Choose a simulated journey and see the travel option Sutra recommends.</p></div>
         <span className="rounded-full border border-warn/60 bg-warn/10 px-3 py-1.5 font-mono text-[11px] tracking-wider text-warn">SIMULATED DATA</span>
       </header>
       {error && <div role="alert" className="mt-6 flex items-start justify-between gap-4 rounded-[14px] border border-danger/60 bg-danger/10 p-4 text-danger"><span><AlertTriangle className="mr-2 inline size-4" /><strong>{technicalError ? "Technical error — no recovery result was created. " : ""}</strong>{error}</span><Btn variant="ghost" onClick={trip ? calculate : loadCatalogue}><RefreshCw className="size-4" />Retry</Btn></div>}
