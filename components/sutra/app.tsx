@@ -13,8 +13,8 @@ import { Meteors } from "@/components/ui/meteors";
 import { TravellerConstraints } from "./traveller-constraints";
 
 const SCENARIOS: { id: ScenarioId; label: string }[] = [
-  { id: "delay", label: "Delay" }, { id: "cancellation", label: "Cancellation" },
-  { id: "infeasible", label: "No recovery" }, { id: "error", label: "Technical error" },
+  { id: "delay", label: "Delayed" }, { id: "cancellation", label: "Cancelled" },
+  { id: "infeasible", label: "No option fits" }, { id: "error", label: "Something went wrong" },
 ];
 const SCROLL_TARGET: Partial<Record<Phase, string>> = {
   DISRUPTION_DETECTED: "disruption", IMPACT_ANALYSIS: "impact", RECOVERY_ANALYSIS: "analysis",
@@ -52,17 +52,17 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
     ? Object.fromEntries(trip.bookings.map(b => [b.id, b.id === analysis.disruption.bookingId ? "CHANGED" : analysis.affectedBookingIds.includes(b.id) ? "AFFECTED" : "UNCHANGED"])) as Record<string, Diff>
     : undefined;
 
-  const next = phase === "TRIP_LOADED" ? { label: "Find my best travel option", run: f.findBestOption }
-    : phase === "DISRUPTION_DETECTED" ? { label: "Analyze impact", run: f.analyzeImpact }
-    : phase === "IMPACT_ANALYSIS" ? { label: "Find recovery", run: f.findRecovery } : null;
+  const next = phase === "TRIP_LOADED" ? { label: "Find a travel option", run: f.findBestOption }
+    : phase === "DISRUPTION_DETECTED" ? { label: "See what is affected", run: f.analyzeImpact }
+    : phase === "IMPACT_ANALYSIS" ? { label: "Show me my options", run: f.findRecovery } : null;
 
   const st = (done: boolean, running = false, bad: MarkStatus = "done"): MarkStatus => (running ? "running" : done ? bad : "pending");
   const stages: DockStage[] = [
-    { id: "trip", label: "Trip", status: st(!!trip), enabled: !!trip },
-    { id: "disruption", label: "Disruption", status: st(hasDisruption, false, "warning"), enabled: hasDisruption },
-    { id: "impact", label: "Impact", status: st(hasImpact, false, "warning"), enabled: hasImpact },
-    { id: "analysis", label: "Recovery", status: hasResult && !result!.feasible ? "warning" : st(hasResult, phase === "RECOVERY_ANALYSIS"), enabled: phase === "RECOVERY_ANALYSIS" || hasResult },
-    { id: "result", label: "Result", status: hasResult ? (result!.feasible ? "done" : "warning") : "pending", enabled: hasResult },
+    { id: "trip", label: "My trip", status: st(!!trip), enabled: !!trip },
+    { id: "disruption", label: "What changed", status: st(hasDisruption, false, "warning"), enabled: hasDisruption },
+    { id: "impact", label: "What is affected", status: st(hasImpact, false, "warning"), enabled: hasImpact },
+    { id: "analysis", label: "Travel options", status: hasResult && !result!.feasible ? "warning" : st(hasResult, phase === "RECOVERY_ANALYSIS"), enabled: phase === "RECOVERY_ANALYSIS" || hasResult },
+    { id: "result", label: "Recommendation", status: hasResult ? (result!.feasible ? "done" : "warning") : "pending", enabled: hasResult },
   ];
   const phaseMark: MarkStatus = phase === "TECHNICAL_ERROR" ? "error" : phase === "NO_FEASIBLE_RECOVERY" ? "warning" : phase === "RECOVERY_READY" ? "done" : phase === "IDLE" || phase === "RECOVERY_ANALYSIS" ? "running" : "pending";
 
@@ -95,11 +95,11 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
           <nav aria-label="Demo scenario" className="hidden items-center gap-1 text-[13px] sm:flex">
             <span className="mr-2 font-mono text-[11px] uppercase tracking-widest text-muted">Demo</span>
             {SCENARIOS.map(s => (
-              <Link key={s.id} href={`/?scenario=${s.id}`} aria-current={scenario === s.id ? "page" : undefined}
+              <Link key={s.id} href={`/demo?scenario=${s.id}`} aria-current={scenario === s.id ? "page" : undefined}
                 className={`rounded-[10px] px-3 py-1.5 transition ${scenario === s.id ? "bg-soft text-ink" : "text-muted hover:text-ink"}`}>{s.label}</Link>
             ))}
           </nav>
-          <Link href="/workbench" className="rounded-[10px] border border-green/40 px-3 py-1.5 text-[13px] font-medium text-green-bright hover:bg-green/10">Workbench</Link>
+          <Link href="/workbench" className="rounded-[10px] border border-green/40 px-3 py-1.5 text-[13px] font-medium text-green-bright hover:bg-green/10">Plan my recovery</Link>
           <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted" aria-live="polite">
             <StatusMark status={phaseMark} size={16} label={phase} /><span className="hidden md:inline">{phase.replaceAll("_", " ")}</span>
           </div>
@@ -114,15 +114,15 @@ export function SutraApp({ scenario }: { scenario: ScenarioId }) {
         {trip && (
           <TracingBeam>
             <TripOverview trip={trip} diffs={tripDiffs} highlightId={highlightId} disruption={hasDisruption ? analysis!.disruption : undefined}
-              cta={phase === "TRIP_LOADED" ? <div className="flex flex-wrap items-center gap-3"><Btn onClick={f.findBestOption}><Search aria-hidden className="size-4" />Find my best travel option</Btn><Btn variant="ghost" onClick={f.simulateDisruption}><Radar aria-hidden className="size-4" />Show me the guided demo</Btn></div> : undefined} />
+              cta={phase === "TRIP_LOADED" ? <div className="flex flex-wrap items-center gap-3"><Btn onClick={f.findBestOption}><Search aria-hidden className="size-4" />Find a travel option</Btn><Btn variant="ghost" onClick={f.simulateDisruption}><Radar aria-hidden className="size-4" />Check my itinerary</Btn></div> : undefined} />
 
             {hasDisruption && analysis && (
               <DisruptionEvent analysis={analysis} trip={trip} highlightId={highlightId} onHighlight={setHighlightId}
-                cta={phase === "DISRUPTION_DETECTED" ? <Btn onClick={f.analyzeImpact}><ArrowRight aria-hidden className="size-4" />Analyze impact</Btn> : undefined} />
+                cta={phase === "DISRUPTION_DETECTED" ? <Btn onClick={f.analyzeImpact}><ArrowRight aria-hidden className="size-4" />See what is affected</Btn> : undefined} />
             )}
             {hasImpact && analysis && (
               <ImpactTrace analysis={analysis}
-                cta={phase === "IMPACT_ANALYSIS" ? <Btn onClick={f.findRecovery}><Search aria-hidden className="size-4" />Find recovery</Btn> : undefined} />
+                cta={phase === "IMPACT_ANALYSIS" ? <Btn onClick={f.findRecovery}><Search aria-hidden className="size-4" />Show me my options</Btn> : undefined} />
             )}
             {phase === "RECOVERY_ANALYSIS" && <RecoveryAnalysis stage={f.stage} />}
             {phase === "RECOVERY_READY" && result && <RecoveryResultView trip={trip} result={result} candidates={f.candidates} selectedId={f.selectedId} disruption={analysis} onRestart={restart} />}

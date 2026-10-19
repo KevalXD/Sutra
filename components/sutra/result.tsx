@@ -20,6 +20,7 @@ const cities = (bs: { kind: string; origin: string; dest: string }[]) => {
   return legs.length ? [legs[0].origin, ...legs.map(l => l.dest)] : [];
 };
 const H3 = "font-display text-[clamp(1.5rem,2.6vw,2.25rem)] font-semibold";
+export type RecoveryResultTab = "best" | "journey" | "compare";
 
 /** Each line is derived from `result.violations` and the repaired itinerary — nothing is asserted that the data does not show. */
 function constraintChecks(trip: Itinerary, result: RecoveryResult) {
@@ -46,8 +47,8 @@ function constraintChecks(trip: Itinerary, result: RecoveryResult) {
   return rows;
 }
 
-export function RecoveryResultView({ trip, result, candidates, selectedId, disruption, onRestart }: {
-  trip: Itinerary; result: RecoveryResult; candidates: RecoveryCandidate[]; selectedId?: string; disruption?: DisruptionAnalysis; onRestart: () => void;
+export function RecoveryResultView({ tab = "best", trip, result, candidates, selectedId, disruption, onRestart }: {
+  tab?: RecoveryResultTab; trip: Itinerary; result: RecoveryResult; candidates: RecoveryCandidate[]; selectedId?: string; disruption?: DisruptionAnalysis; onRestart: () => void;
 }) {
   const cur = trip.currency;
   const diffs = Object.fromEntries(result.itinerary.map(b => [b.id, diffOf(b, trip.bookings, result.affectedBookingIds)])) as Record<string, Diff>;
@@ -55,15 +56,21 @@ export function RecoveryResultView({ trip, result, candidates, selectedId, disru
   const arrival = legs[legs.length - 1]?.end;
   const route = cities(result.itinerary);
   const checks = constraintChecks(trip, result);
+  const isBest = tab === "best";
+  const isJourney = tab === "journey";
+  const isCompare = tab === "compare";
 
   return (
     <Section id="result" kicker="05 · Your recommended option" tone="success"
       title={<span className="flex items-center gap-4"><StatusMark status="done" size={44} label="Option available" />Your best travel option</span>}>
+      {isBest && <>
       <p className="max-w-2xl text-[17px] text-ink2">
         This option makes <span className="text-ink">{result.changes} change{result.changes === 1 ? "" : "s"}</span> to your journey · costs <span className="text-ink">{formatMoney(result.extraCost, cur)} extra</span>
         {arrival && <> · arrives at <span className="text-ink">{hm(arrival)}</span></>}. Everything else stays as booked.
       </p>
       <RepairTimeline />
+      </>}
+      {isJourney && <>
       <BorderGlow className="hidden rounded-[18px] border border-line bg-surface/60 p-5 shadow-l2 sm:block md:p-8">
         <RecoveryPath cities={route} label={`Repaired route: ${route.map(placeName).join(" to ")}`} />
       </BorderGlow>
@@ -73,6 +80,8 @@ export function RecoveryResultView({ trip, result, candidates, selectedId, disru
         <WhatChanged original={trip.bookings} repaired={result.itinerary} diffs={diffs} />
       </div>
       <JourneyTimeline trip={trip} candidates={candidates} recommendedId={selectedId} disruption={disruption} />
+      </>}
+      {isBest && <>
       <div className="grid gap-10 lg:grid-cols-2">
         <div>
           <h3 className={H3}>Does it fit your preferences?</h3>
@@ -87,7 +96,9 @@ export function RecoveryResultView({ trip, result, candidates, selectedId, disru
           {!!result.tradeoffs?.length && <ul className="mt-3 space-y-1 text-[15px] text-ink2">{result.tradeoffs.map((tradeoff) => <li key={tradeoff}>• {tradeoff}</li>)}</ul>}
         </div>
       </div>
-      <RecoveryExplanation audit={result.audit} currency={cur} />
+      </>}
+      {isCompare && <RecoveryExplanation audit={result.audit} currency={cur} />}
+      {isBest && <>
       <div>
         <h3 className={H3}>What to do next</h3>
         {result.actions.length ? (
@@ -109,20 +120,26 @@ export function RecoveryResultView({ trip, result, candidates, selectedId, disru
           </ul>
         ) : <p className="mt-3 text-[16px] text-ink2">No traveller actions were returned for this recovery.</p>}
       </div>
+      </>}
+      {isCompare && <>
       <RecoveryComparison candidates={candidates} selectedId={selectedId} trip={trip}
         heading="Alternatives compared" intro="Every candidate Sutra evaluated, checked against the same constraints. The selected recovery is highlighted." />
-      <Btn variant="ghost" onClick={onRestart}><RotateCcw aria-hidden className="size-4" />Start over</Btn>
+      </>}
+      {isBest && <Btn variant="ghost" onClick={onRestart}><RotateCcw aria-hidden className="size-4" />Start over</Btn>}
     </Section>
   );
 }
 
-export function NoFeasibleView({ result, candidates, trip, onRestart }: { result: RecoveryResult; candidates: RecoveryCandidate[]; trip: Itinerary; onRestart: () => void }) {
+export function NoFeasibleView({ tab = "best", result, candidates, trip, onRestart }: { tab?: RecoveryResultTab; result: RecoveryResult; candidates: RecoveryCandidate[]; trip: Itinerary; onRestart: () => void }) {
   const byKind = new Map<string, { bookingId: string; message: string }[]>();
   result.violations.forEach(v => byKind.set(v.kind, [...(byKind.get(v.kind) ?? []), v]));
+  const isBest = tab === "best";
+  const isJourney = tab === "journey";
+  const isCompare = tab === "compare";
   return (
     <Section id="result" kicker="05 · No matching option" tone="warn"
       title={<span className="flex items-center gap-4"><CircleSlash aria-hidden className="size-10 text-warn" />No travel option fits yet</span>}>
-      <div role="alert" className="sutra-card rounded-[18px] border border-warn/50 bg-elevated p-6 shadow-l2 md:p-8">
+      {isBest && <><div role="alert" className="sutra-card rounded-[18px] border border-warn/50 bg-elevated p-6 shadow-l2 md:p-8">
         <p className="max-w-2xl text-[17px] text-ink">No available option meets all of your current preferences, so Sutra is not recommending one.</p>
         <div className="mt-6 space-y-5">
           {[...byKind.entries()].map(([k, vs]) => (
@@ -137,10 +154,11 @@ export function NoFeasibleView({ result, candidates, trip, onRestart }: { result
       <div className="flex flex-wrap gap-3">
         <Btn variant="neutral" onClick={() => document.getElementById("traveller-constraints-heading")?.scrollIntoView({ behavior: "smooth" })}><ArrowRight aria-hidden className="size-4" />Review my preferences</Btn>
         <Btn variant="ghost" onClick={onRestart}><RotateCcw aria-hidden className="size-4" />Start over</Btn>
-      </div>
-      <RecoveryComparison candidates={candidates} trip={trip}
+      </div></>}
+      {isJourney && <div className="sutra-card rounded-[18px] border border-line bg-surface/60 p-6 text-ink2">There is no repaired itinerary to display because no option passed all of the current requirements.</div>}
+      {isCompare && <><RecoveryComparison candidates={candidates} trip={trip}
         heading="Why no alternative works" intro="Each candidate below violates at least one constraint, so none is offered as a recovery." />
-      <RecoveryExplanation audit={result.audit} currency={trip.currency} />
+      <RecoveryExplanation audit={result.audit} currency={trip.currency} /></>}
     </Section>
   );
 }

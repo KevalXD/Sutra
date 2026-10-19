@@ -1,5 +1,4 @@
-# Sutra
-
+# sutra 
 > **When travel breaks, Sutra repairs the journey.**
 >
 > A work-in-progress frontend prototype for exploring travel disruption and recovery.
