@@ -97,7 +97,7 @@ export function RecoveryResultView({ tab = "best", trip, result, candidates, sel
         </div>
       </div>
       </>}
-      {isCompare && <RecoveryExplanation audit={result.audit} currency={cur} />}
+      {isBest && <RecoveryExplanation audit={result.audit} currency={cur} recommendationReason={result.explanation} />}
       {isBest && <>
       <div>
         <h3 className={H3}>What to do next</h3>
@@ -111,10 +111,10 @@ export function RecoveryResultView({ tab = "best", trip, result, candidates, sel
                     <p className="mt-1 text-[13px] text-muted">This is a suggested next step for your simulated journey.</p>
                   </div>
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-warn/40 bg-warn/10 px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.1em] text-warn">
-                    <CircleUserRound aria-hidden className="size-3.5" />{action.automated ? "Automated" : "Traveller action required"}
+                    <CircleUserRound aria-hidden className="size-3.5" />{action.automated ? "Completed automatically" : "Traveller action required"}
                   </span>
                 </div>
-                {!action.automated && <p className="mt-2 text-[14px] text-ink2">Not completed automatically — no booking or reservation has been changed.</p>}
+                {action.automated ? <p className="mt-2 text-[14px] text-ink2">Completed automatically as a workflow step; this does not confirm a booking or reservation.</p> : <p className="mt-2 text-[14px] text-ink2">Not completed automatically — no booking or reservation has been changed.</p>}
               </li>
             ))}
           </ul>
@@ -156,9 +156,9 @@ export function NoFeasibleView({ tab = "best", result, candidates, trip, onResta
         <Btn variant="ghost" onClick={onRestart}><RotateCcw aria-hidden className="size-4" />Start over</Btn>
       </div></>}
       {isJourney && <div className="sutra-card rounded-[18px] border border-line bg-surface/60 p-6 text-ink2">There is no repaired itinerary to display because no option passed all of the current requirements.</div>}
-      {isCompare && <><RecoveryComparison candidates={candidates} trip={trip}
-        heading="Why no alternative works" intro="Each candidate below violates at least one constraint, so none is offered as a recovery." />
-      <RecoveryExplanation audit={result.audit} currency={trip.currency} /></>}
+      {isCompare && <RecoveryComparison candidates={candidates} trip={trip}
+        heading="Why no alternative works" intro="Each candidate below violates at least one constraint, so none is offered as a recovery." />}
+      {isBest && <RecoveryExplanation audit={result.audit} currency={trip.currency} recommendationReason={result.explanation} />}
     </Section>
   );
 }
