@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -17,7 +16,6 @@ export function AnimatedHeroHeadline() {
     if (reduceMotion) return;
 
     let exitTimer: ReturnType<typeof setTimeout>;
-    let enterTimer: ReturnType<typeof setTimeout>;
 
     const interval = window.setInterval(() => {
       setLeaving(true);
@@ -31,7 +29,6 @@ export function AnimatedHeroHeadline() {
     return () => {
       window.clearInterval(interval);
       clearTimeout(exitTimer);
-      clearTimeout(enterTimer);
     };
   }, []);
 
