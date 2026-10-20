@@ -25,3 +25,34 @@ test("the canonical route converts missing required Gemini configuration into AI
   assert.equal(body.error.code, "AI_UNAVAILABLE");
   assert.equal(body.decisionAudit.decisionSource, "NONE");
 });
+
+test("the flight-cancellation route returns AI_UNAVAILABLE when required Gemini fails", async () => {
+  const outcome = await executeRecoveryRun({
+    tripId: "trip-bengaluru-delhi-jaipur-01",
+    tripVersion: 1,
+    disruption: {
+      source: "SIMULATED",
+      scenarioId: "bengaluru-delhi-flight-cancellation-01",
+      bookingId: "FLIGHT-BLR-DEL",
+      kind: "cancellation",
+    },
+    constraintOverrides: {
+      latestArrivalAt: "2026-12-05T16:30:00",
+      maxExtraBudget: 4000,
+      noOvernight: true,
+      priority: "LOWER_COST",
+    },
+  }, {
+    aiRequired: true,
+    provider: "gemini",
+    model: "test-model",
+    recommender: { recommend: async () => { throw new Error("simulated provider failure"); } },
+  });
+
+  const body = outcome.body as { status: string; error: { code: string }; decisionAudit: { decisionSource: string; technicalError?: { code: string } } };
+  assert.equal(outcome.status, 500);
+  assert.equal(body.status, "TECHNICAL_ERROR");
+  assert.equal(body.error.code, "AI_UNAVAILABLE");
+  assert.equal(body.decisionAudit.technicalError?.code, "AI_UNAVAILABLE");
+  assert.equal(body.decisionAudit.decisionSource, "NONE");
+});
