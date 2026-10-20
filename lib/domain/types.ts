@@ -1,4 +1,5 @@
-export type TransportMode = "rail";
+/** Modes deliberately kept small for the simulated recovery MVP. */
+export type TransportMode = "rail" | "flight";
 
 export type ItineraryItemKind =
   | "transport"

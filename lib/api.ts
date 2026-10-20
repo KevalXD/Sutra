@@ -25,10 +25,10 @@ async function postRecoveryRun(scenario: ScenarioId, attempt = 0, constraintOver
   const fixture = demoScenarioFor(scenario);
   return call<RecoveryRunResult>("/api/v1/recovery-runs", { code: "RECOVERY_SERVICE_UNAVAILABLE", message: "Recovery could not be calculated." }, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tripId: fixture.trip.id, tripVersion: fixture.trip.version, disruption: fixture.disruption, demoAttempt: attempt, ...(constraintOverrides ? { constraintOverrides } : {}) }) });
 }
-export const postDisruption = async (scenario: ScenarioId, attempt = 0): Promise<DisruptionAnalysis> => presentImpact(disruptionFor(scenario), (await postRecoveryRun(scenario, attempt)).impact);
+export const postDisruption = async (scenario: ScenarioId, attempt = 0): Promise<DisruptionAnalysis> => { const fixture = demoScenarioFor(scenario); return presentImpact(disruptionFor(scenario), (await postRecoveryRun(scenario, attempt)).impact, fixture.trip); };
 export const getAlternatives = async (scenario: ScenarioId, attempt = 0): Promise<RecoveryCandidate[]> => presentRun(demoScenarioFor(scenario).trip, await postRecoveryRun(scenario, attempt)).candidates;
 export const postRecovery = async (scenario: ScenarioId, attempt = 0): Promise<{ result: RecoveryResult; selectedId?: string }> => { const mapped = presentRun(demoScenarioFor(scenario).trip, await postRecoveryRun(scenario, attempt)); return { result: mapped.result, selectedId: mapped.selectedId }; };
 export const runScenario = async (scenario: ScenarioId, attempt = 0, constraintOverrides?: DomainConstraintOverrides) => {
   const fixture = demoScenarioFor(scenario); const run = await postRecoveryRun(scenario, attempt, constraintOverrides); const mapped = presentRun(fixture.trip, run);
-  return { analysis: presentImpact(disruptionFor(scenario), run.impact), effectiveConstraints: run.effectiveConstraints, ...mapped };
+  return { analysis: presentImpact(disruptionFor(scenario), run.impact, fixture.trip), effectiveConstraints: run.effectiveConstraints, ...mapped };
 };

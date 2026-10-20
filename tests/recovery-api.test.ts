@@ -18,8 +18,13 @@ test("journey catalogue exposes only supported selectable journeys and profiles"
   const response = await tripsOutcome();
   assert.equal(response.status, 200);
   const body = response.body;
-  assert.deepEqual(body.journeys.map((journey) => journey.tripId), ["trip-golden-rail-delay-01", "trip-mangaluru-bengaluru-01", "trip-mangaluru-udupi-01", "trip-bengaluru-chennai-01"]);
-  const golden = body.journeys[0];
+  assert.deepEqual(body.journeys.map((journey) => journey.tripId), ["trip-bengaluru-delhi-jaipur-01", "trip-golden-rail-delay-01", "trip-mangaluru-bengaluru-01", "trip-mangaluru-udupi-01", "trip-bengaluru-chennai-01"]);
+  const flightRail = body.journeys[0];
+  assert.equal(flightRail.origin, "Bengaluru (BLR)");
+  assert.equal(flightRail.destination, "Jaipur Junction");
+  assert.deepEqual(flightRail.items.map((item) => item.id), ["FLIGHT-BLR-DEL", "RAIL-DEL-JAI", "HOTEL-JAI-1", "ACTIVITY-JAI-1"]);
+  assert.deepEqual(flightRail.supportedDisruptions.map((profile) => profile.id), ["bengaluru-delhi-flight-cancellation-01"]);
+  const golden = body.journeys[1];
   assert.equal(golden.origin, "Mangaluru Central");
   assert.equal(golden.destination, "Mysuru Junction");
   assert.equal(golden.tripVersion, 1);
@@ -29,20 +34,40 @@ test("journey catalogue exposes only supported selectable journeys and profiles"
   assert.equal(golden.items[2].location, "Mysuru");
   assert.equal(JSON.stringify(body).includes("technical-error-retry-01"), false);
   assert.equal(JSON.stringify(body).includes("no-feasible-recovery-01"), false);
-  const bengaluru = body.journeys[1];
+  const bengaluru = body.journeys[2];
   assert.equal(bengaluru.destination, "Bengaluru City");
   assert.deepEqual(bengaluru.items.map((item) => item.id), ["RAIL-C", "RAIL-D", "ACTIVITY-1", "HOTEL-2"]);
   assert.deepEqual(bengaluru.supportedDisruptions.map((profile) => profile.id), ["mangaluru-bengaluru-delay-01", "mangaluru-bengaluru-rail-d-delay-01"]);
-  const udupi = body.journeys[2];
+  const udupi = body.journeys[3];
   assert.equal(udupi.destination, "Udupi");
   assert.deepEqual(udupi.items.map((item) => item.id), ["RAIL-E", "ACTIVITY-UDUPI-1", "HOTEL-UDUPI-1"]);
   assert.deepEqual(udupi.supportedDisruptions.map((profile) => profile.id), ["mangaluru-udupi-rail-delay-01"]);
-  const chennai = body.journeys[3];
+  const chennai = body.journeys[4];
   assert.equal(chennai.origin, "Bengaluru City");
   assert.equal(chennai.destination, "Chennai Central");
   assert.deepEqual(chennai.items.map((item) => item.id), ["RAIL-F", "RAIL-G", "ACTIVITY-CHENNAI-1", "HOTEL-CHENNAI-1"]);
   assert.deepEqual(chennai.supportedDisruptions.map((profile) => profile.id), ["bengaluru-chennai-later-rail-delay-01", "bengaluru-jolarpet-rail-f-delay-01"]);
   assert.ok(body.journeys.every((journey) => journey.source === "SIMULATED"));
+});
+
+test("flight cancellation identifies downstream commitments and validates only the feasible simulated flight", async () => {
+  const response = await recoveryRunOutcome({ tripId: "trip-bengaluru-delhi-jaipur-01", tripVersion: 1, disruption: { source: "SIMULATED", scenarioId: "bengaluru-delhi-flight-cancellation-01", bookingId: "FLIGHT-BLR-DEL", kind: "cancellation" } });
+  assert.equal(response.status, 200);
+  const body = response.body as Extract<RecoveryRunResult, { status: "RECOVERED" }>;
+  assert.equal(body.status, "RECOVERED");
+  assert.deepEqual(body.impact.disruptedItemIds, ["FLIGHT-BLR-DEL"]);
+  assert.deepEqual(body.impact.affectedItemIds, ["RAIL-DEL-JAI", "HOTEL-JAI-1", "ACTIVITY-JAI-1"]);
+  assert.equal(body.recommendation.selectedCandidateId, "FDJ-A");
+  assert.equal(body.recommendation.decisionSource, "DETERMINISTIC_FALLBACK");
+  const feasible = body.candidates.find((candidate) => candidate.id === "FDJ-A")!;
+  assert.equal(feasible.feasible, true);
+  assert.equal(feasible.connectionChecks[0].actualBufferMinutes, 105);
+  assert.equal(feasible.connectionChecks[0].passed, true);
+  assert.equal(feasible.repairedTimings["RAIL-DEL-JAI"]?.endAt, "2026-12-05T16:15:00");
+  assert.ok(body.candidates.find((candidate) => candidate.id === "FDJ-B")?.violations.some((violation) => violation.kind === "CONNECTION"));
+  assert.ok(body.candidates.find((candidate) => candidate.id === "FDJ-C")?.violations.some((violation) => violation.kind === "MAX_EXTRA_BUDGET"));
+  assert.equal(body.decisionAudit.selectedCandidateId, body.recommendation.selectedCandidateId);
+  assert.deepEqual(body.actions.map((action) => action.kind), ["BOOK_REPLACEMENT", "REVIEW_CANCELLED_BOOKING", "NOTIFY_ACCOMMODATION"]);
 });
 
 test("new journey trip endpoints return their canonical versioned fixtures", async () => {

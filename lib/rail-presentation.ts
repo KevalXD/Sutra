@@ -12,7 +12,7 @@ const asBooking = (item: ItineraryItem) => {
     const last = item.legs[item.legs.length - 1];
     return {
       id: item.id,
-      kind: "train" as const,
+      kind: item.mode === "flight" ? "flight" as const : "train" as const,
       origin: first?.origin ?? "",
       dest: last?.destination ?? "",
       start: first?.departureAt ?? first?.arrivalAt ?? "",
@@ -44,8 +44,10 @@ export function presentTrip(trip: Trip = goldenTrip): Itinerary {
   };
 }
 
-export function presentImpact(disruption: Disruption, impact: ImpactAnalysis): DisruptionAnalysis {
-  return { disruption: { bookingId: disruption.bookingId, kind: disruption.kind === "cancellation" ? "cancel" : "delay", delayMin: disruption.delayMinutes }, affectedBookingIds: impact.affectedItemIds, impact: [{ bookingId: disruption.bookingId, reason: disruption.kind === "cancellation" ? "cancel" : "delay", text: disruption.kind === "cancellation" ? "This simulated rail service is cancelled." : `This simulated rail service is delayed by ${disruption.delayMinutes} minutes.` }, ...impact.reasons.map((reason) => ({ bookingId: reason.itemId, reason: "connection" as const, text: reason.reason }))] };
+export function presentImpact(disruption: Disruption, impact: ImpactAnalysis, trip: Trip = goldenTrip): DisruptionAnalysis {
+  const item = trip.items.find((value) => value.id === disruption.bookingId);
+  const transportName = item?.kind === "transport" && item.mode === "flight" ? "flight" : "rail service";
+  return { disruption: { bookingId: disruption.bookingId, kind: disruption.kind === "cancellation" ? "cancel" : "delay", delayMin: disruption.delayMinutes }, affectedBookingIds: impact.affectedItemIds, impact: [{ bookingId: disruption.bookingId, reason: disruption.kind === "cancellation" ? "cancel" : "delay", text: disruption.kind === "cancellation" ? `This simulated ${transportName} is cancelled.` : `This simulated ${transportName} is delayed by ${disruption.delayMinutes} minutes.` }, ...impact.reasons.map((reason) => ({ bookingId: reason.itemId, reason: "connection" as const, text: reason.reason }))] };
 }
 function candidateItinerary(trip: Trip, candidate: ValidatedRecoveryCandidate) {
   return trip.items.map((item) => {

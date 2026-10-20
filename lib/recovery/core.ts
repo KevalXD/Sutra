@@ -214,7 +214,15 @@ function plan(trip: Trip, impact: ImpactAnalysis, candidate: ValidatedRecoveryCa
   const times = candidate.repairedTimings; const original = trip.items.filter((x) => x.kind === "transport").map((x) => timing(trip, x.id)).sort((a, b) => b.endAt.localeCompare(a.endAt))[0].endAt;
   return { selectedCandidateId: candidate.id, items: trip.items.map((item) => ({ itemId: item.id, kind: item.kind, label: item.label, impactState: candidate.impactStates[item.id], recoveryChange: candidate.recoveryChanges[item.id], original: timing(trip, item.id), repaired: times[item.id], ...(candidate.alternatives.find((x) => x.replacementForBookingId === item.id) ? { replacedByAlternativeId: candidate.alternatives.find((x) => x.replacementForBookingId === item.id)!.id } : {}) })), extraCost: candidate.extraCost, originalFinalArrivalAt: original, repairedFinalArrivalAt: candidate.finalArrivalAt, arrivalDeltaMinutes: minutes(candidate.finalArrivalAt) - minutes(original), constraintResults: evaluations(trip, impact, candidate, times, candidate.dependencyChecks) };
 }
-function actions(planValue: RecoveryPlan, candidate: ValidatedRecoveryCandidate): TravellerAction[] { return candidate.alternatives.map((alternative, index) => ({ id: `ACT-${index + 1}`, kind: "BOOK_REPLACEMENT", itemId: alternative.replacementForBookingId, description: `Book simulated replacement ${alternative.id}.`, automated: false })); }
+function actions(planValue: RecoveryPlan, candidate: ValidatedRecoveryCandidate, trip: Trip): TravellerAction[] {
+  const items = planValue.items;
+  const replacementActions = candidate.alternatives.map((alternative, index) => ({ id: `ACT-${index + 1}`, kind: "BOOK_REPLACEMENT" as const, itemId: alternative.replacementForBookingId, description: `Book simulated replacement ${alternative.id}.`, automated: false as const }));
+  const flightReplacement = candidate.alternatives.some((alternative) => trip.items.some((item) => item.id === alternative.replacementForBookingId && item.kind === "transport" && item.mode === "flight"));
+  if (!flightReplacement) return replacementActions;
+  const cancelled = items.find((item) => item.impactState === "DISRUPTED");
+  const hotels = items.filter((item) => item.kind === "accommodation" && item.impactState === "AFFECTED");
+  return [...replacementActions, ...(cancelled ? [{ id: "ACT-REVIEW-CANCELLED", kind: "REVIEW_CANCELLED_BOOKING" as const, itemId: cancelled.itemId, description: "Review the cancelled simulated flight and airline refund terms.", automated: false as const }] : []), ...hotels.map((hotel) => ({ id: `ACT-NOTIFY-${hotel.itemId}`, kind: "NOTIFY_ACCOMMODATION" as const, itemId: hotel.itemId, description: `Contact ${hotel.label} to confirm the simulated late-arrival plan.`, automated: false as const }))];
+}
 export function parseRequest(body: unknown): RecoveryRunRequest {
   const value = body as Record<string, unknown>; const disruption = value?.disruption as Record<string, unknown>;
   if (!value || typeof value.tripId !== "string" || !Number.isInteger(value.tripVersion) || !disruption || disruption.source !== "SIMULATED" || typeof disruption.scenarioId !== "string" || typeof disruption.bookingId !== "string" || (disruption.kind !== "delay" && disruption.kind !== "cancellation")) throw new RecoveryInputError("INVALID_REQUEST", "Invalid recovery-run request.");
@@ -317,5 +325,5 @@ export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDep
   }
   if (deps.aiRequired && !recommendation) throw new TechnicalFailure("AI_UNAVAILABLE", "A validated Gemini recommendation is required but unavailable.");
   recommendation ??= fallback(candidates, priority); const selected = candidates.find((x) => x.id === recommendation.selectedCandidateId)!; const recoveryPlan = plan(trip, impact, selected);
-  return { ...base, status: "RECOVERED", recommendation, recoveryPlan, actions: actions(recoveryPlan, selected), decisionAudit: auditFor(runId, "RECOVERED", recommendation.decisionSource, recommendation.selectedCandidateId, trip.constraints, trip, impact, candidates, priority) };
+  return { ...base, status: "RECOVERED", recommendation, recoveryPlan, actions: actions(recoveryPlan, selected, trip), decisionAudit: auditFor(runId, "RECOVERED", recommendation.decisionSource, recommendation.selectedCandidateId, trip.constraints, trip, impact, candidates, priority) };
 }
