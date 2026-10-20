@@ -13,6 +13,46 @@
   --shadow-3: 0 24px 70px rgba(0, 0, 0, 0.3);
 }
 
+.sutra-word-slot {
+  display: inline-grid;
+  vertical-align: baseline;
+  white-space: nowrap;
+  overflow: hidden;
+  clip-path: inset(-0.12em 0 -0.12em 0);
+}
+
+.sutra-word {
+  grid-area: 1 / 1;
+  visibility: hidden;
+  transform: translateY(100%);
+  opacity: 0;
+  white-space: nowrap;
+}
+
+.sutra-word-active {
+  visibility: visible;
+  animation: sutra-word-reveal 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sutra-word-reveal {
+  from {
+    transform: translateY(100%);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sutra-word-active {
+    animation: none;
+    transform: none;
+  }
+}
+
 @theme inline {
   --color-bg: var(--bg); --color-surface: var(--surface); --color-elevated: var(--elevated); --color-soft: var(--soft);
   --color-line: var(--line); --color-line-strong: var(--line-strong);
