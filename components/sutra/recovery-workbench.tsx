@@ -8,6 +8,7 @@ import { presentImpact, presentRun, presentTrip } from "@/lib/rail-presentation"
 import type { ConstraintOverrides, JourneyCatalogueEntry, RecoveryPriority, RecoveryRunResult, SupportedDisruptionProfile, Trip } from "@/lib/domain/types";
 import { RecoveryResultView, NoFeasibleView, type RecoveryResultTab } from "./result";
 import { Btn } from "./sections";
+import { LiveRailStatus } from "./live-rail-status";
 
 const toInput = (value?: string) => value?.slice(0, 16) ?? "";
 const toApi = (value: string) => `${value}:00`;
@@ -104,8 +105,10 @@ export function RecoveryWorkbench() {
     <div className="mx-auto max-w-6xl pb-16">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-6">
         <div><Link href="/" className="inline-flex items-center gap-2 text-[14px] text-muted hover:text-ink"><ArrowLeft className="size-4" />Back home</Link><h1 className="mt-4 font-display text-3xl font-semibold md:text-4xl">Find a way forward</h1><p className="mt-2 max-w-3xl text-ink2">Tell Sutra what happened and what matters to you. We will compare options that fit.</p><p className="mt-2 text-sm text-muted">This tool evaluates options only. It does not book or change tickets.</p></div>
-        <span className="rounded-full border border-warn/60 bg-warn/10 px-3 py-1.5 font-mono text-[11px] tracking-wider text-warn">SIMULATED DATA</span>
+        <span className="rounded-full border border-warn/60 bg-warn/10 px-3 py-1.5 font-mono text-[11px] tracking-wider text-warn">SIMULATED DATA · RECOVERY OFFERS</span>
       </header>
+
+      <LiveRailStatus />
 
       <nav aria-label="Recovery steps" className="sticky top-3 z-20 mt-5 rounded-2xl border border-line bg-bg/95 p-2 shadow-l2 backdrop-blur-xl">
         <ol className="grid gap-2 sm:grid-cols-2">
