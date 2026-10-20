@@ -66,6 +66,14 @@ Run `npm run ai:config` to safely inspect the effective provider, model, AI-requ
 
 Keys are read only by the API route and are never included in browser code or recovery responses. A provider receives only already-feasible candidate facts and returns a strict structured selection; the backend independently checks the candidate and all provider-supplied objective claims, then generates the displayed explanation from verified data. In optional mode, network, timeout, malformed-output, and validation failures use deterministic fallback. There is no runtime switch from a selected, failing provider to the other provider.
 
+## Live RailRadar status (manual check)
+
+Set `RAILRADAR_API_KEY` in `.env.local` to enable the workbench’s **Check live status** control. The key remains server-side: the browser calls Sutra’s `/api/v1/rail-status?trainNumber=12919` route, which validates RailRadar’s response and exposes only the displayed status fields. Do not add the key to tracked files.
+
+The control is deliberately manual—there is no polling, background refresh, or provider call while the page renders. Sutra caches a successful upstream RailRadar request for about 120 seconds to conserve the free sandbox’s 100-request monthly quota, while still displaying RailRadar’s own `lastUpdatedAt` value. Provider errors, bad responses, and missing configuration are shown as unavailable rather than replaced with fixture data.
+
+Live running status is informative only. Recovery candidates, feasibility, ranking, availability, fares, booking, and PNR data remain out of scope; the existing recovery alternatives are simulated and live status does not recalculate them.
+
 ### Opt-in real-provider smoke test
 
 After configuring a real Gemini key in `.env.local`, run `npm run test:ai:smoke`. It runs the golden rail-delay request and the Bengaluru-to-Jaipur flight-cancellation request through the same provider selection and recovery pipeline as the API route. It never prints keys or request headers; it emits only safe configuration, diagnostic categories, and verification results. Each scenario must return an AI-labelled expected candidate with a matching audit and plan; the multimodal case must select feasible `FDJ-A` and verify its returned connection and budget data. A provider failure, timeout, invalid recommendation, or deterministic fallback fails the command. It is intentionally separate from `npm test`.
