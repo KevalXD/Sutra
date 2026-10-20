@@ -33,6 +33,30 @@ function classifyGeminiError(error: unknown): RecommendationProviderError {
 
 /** Leave a small margin for the recovery layer to fall back after the SDK aborts. */
 export const GEMINI_REQUEST_TIMEOUT_MS = AI_RECOMMENDATION_BUDGET_MS - 500;
+const GEMINI_MAX_RETRY_DELAY_MS = 250;
+const GEMINI_RETRY_BASE_DELAY_MS = 100;
+const GEMINI_ATTEMPT_TIMEOUT_MS = Math.floor((GEMINI_REQUEST_TIMEOUT_MS - GEMINI_MAX_RETRY_DELAY_MS) / 2);
+const GEMINI_MAX_ATTEMPTS = 2;
+
+function waitForRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) {
+    return Promise.reject(new RecommendationProviderError("PROVIDER_TIMEOUT", "Gemini retry was cancelled by the recovery deadline."));
+  }
+  return new Promise((resolve, reject) => {
+    const cleanup = () => signal?.removeEventListener("abort", onAbort);
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, delayMs);
+    const onAbort = () => {
+      clearTimeout(timer);
+      cleanup();
+      reject(new RecommendationProviderError("PROVIDER_TIMEOUT", "Gemini retry was cancelled by the recovery deadline."));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+  });
+}
 
 /** Server-only Gemini adapter. The model sees only the already-feasible candidate set. */
 export class GeminiRecommendationProvider {
@@ -41,21 +65,39 @@ export class GeminiRecommendationProvider {
     this.client = options.client ?? new GoogleGenAI({
       apiKey: options.apiKey,
       httpOptions: {
-        timeout: options.timeoutMs ?? GEMINI_REQUEST_TIMEOUT_MS,
-        // The SDK defaults to five attempts and retries 5xx responses. Recovery has one
-        // total budget instead, so a 503 must reach deterministic fallback immediately.
+        timeout: Math.min(options.timeoutMs ?? GEMINI_ATTEMPT_TIMEOUT_MS, GEMINI_ATTEMPT_TIMEOUT_MS),
         retryOptions: { attempts: 1 },
         ...(options.fetchFn ? { fetch: options.fetchFn } : {}),
       },
     });
   }
-  async recommend(input: { trip: Trip; impact: ImpactAnalysis; feasibleCandidates: ValidatedRecoveryCandidate[]; activePriority?: import("@/lib/domain/types").RecoveryPriority }): Promise<RecommendationDraft> {
-    let response: GeminiResponse;
-    try {
-      response = await this.client.models.generateContent({ model: this.options.model, contents: `Choose only from the supplied feasible recovery candidates. If activePriority is supplied, select its deterministic best candidate. Return structured facts exactly as supplied. Do not claim booking, purchase, availability, or feasibility.\n${JSON.stringify(recommendationContext(input.trip, input.impact, input.feasibleCandidates, input.activePriority))}`, config: { responseMimeType: "application/json", responseJsonSchema: recommendationJsonSchema } });
-    } catch (error) {
-      throw classifyGeminiError(error);
+  async recommend(input: { trip: Trip; impact: ImpactAnalysis; feasibleCandidates: ValidatedRecoveryCandidate[]; activePriority?: import("@/lib/domain/types").RecoveryPriority; signal?: AbortSignal }): Promise<RecommendationDraft> {
+    const request = {
+      model: this.options.model,
+      contents: `Choose only from the supplied feasible recovery candidates. If activePriority is supplied, select its deterministic best candidate. Return structured facts exactly as supplied. Do not claim booking, purchase, availability, or feasibility.\n${JSON.stringify(recommendationContext(input.trip, input.impact, input.feasibleCandidates, input.activePriority))}`,
+      config: {
+        thinkingConfig: { thinkingLevel: "LOW" },
+        responseMimeType: "application/json",
+        responseJsonSchema: recommendationJsonSchema,
+        ...(input.signal ? { abortSignal: input.signal } : {}),
+      },
+    };
+    let response: GeminiResponse | undefined;
+    for (let attempt = 0; attempt < GEMINI_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        response = await this.client.models.generateContent(request);
+        break;
+      } catch (error) {
+        if (attempt === 0 && error instanceof ApiError && error.status === 503 && !input.signal?.aborted) {
+          const exponentialDelay = Math.min(GEMINI_RETRY_BASE_DELAY_MS * 2 ** attempt, GEMINI_MAX_RETRY_DELAY_MS);
+          const jitteredDelay = Math.floor(Math.random() * (exponentialDelay + 1));
+          await waitForRetry(jitteredDelay, input.signal);
+          continue;
+        }
+        throw classifyGeminiError(error);
+      }
     }
+    if (!response) throw new RecommendationProviderError("PROVIDER_API_ERROR", "Gemini request completed without a response.");
     if (!response.text) throw new RecommendationProviderError("PROVIDER_RESPONSE_PARSE_ERROR", "Gemini returned no structured output.");
     let parsed: Record<string, unknown>;
     try { parsed = JSON.parse(response.text) as Record<string, unknown>; }
