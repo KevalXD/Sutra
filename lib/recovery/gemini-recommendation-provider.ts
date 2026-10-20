@@ -1,6 +1,7 @@
 import { ApiError, GoogleGenAI } from "@google/genai";
 import type { ImpactAnalysis, Trip, ValidatedRecoveryCandidate } from "@/lib/domain/types";
 import { AI_RECOMMENDATION_BUDGET_MS, RecommendationProviderError } from "./core";
+import { configuredGeminiModel } from "./gemini-config";
 import { recommendationContext, recommendationJsonSchema, type RecommendationDraft } from "./recommendation";
 
 type GeminiResponse = { text?: string };
@@ -108,5 +109,5 @@ export class GeminiRecommendationProvider {
 
 export const configuredGeminiRecommendationProvider = () => {
   const apiKey = process.env.GEMINI_API_KEY;
-  return apiKey ? new GeminiRecommendationProvider({ apiKey, model: process.env.SUTRA_GEMINI_MODEL || "gemini-3.8-flash" }) : undefined;
+  return apiKey ? new GeminiRecommendationProvider({ apiKey, model: configuredGeminiModel() }) : undefined;
 };

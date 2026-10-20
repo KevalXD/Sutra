@@ -3,6 +3,7 @@ import test from "node:test";
 import { goldenDisruption, goldenTrip } from "@/lib/domain/fixtures/golden-rail-delay-01";
 import { ApiError } from "@google/genai";
 import { GEMINI_REQUEST_TIMEOUT_MS, GeminiRecommendationProvider, type GeminiClient } from "@/lib/recovery/gemini-recommendation-provider";
+import { DEFAULT_GEMINI_MODEL } from "@/lib/recovery/gemini-config";
 import { selectRecommendationProvider, type ProviderFactories } from "@/lib/recovery/provider-selection";
 import { AI_RECOMMENDATION_BUDGET_MS, runRecovery, type RecommendationProvider } from "@/lib/recovery/core";
 
@@ -201,6 +202,13 @@ test("explicit Gemini selection constructs Gemini with its configured model", ()
   assert.equal(selection.provider, "gemini"); assert.equal(selection.model, "gemini-test"); assert.ok(selection.recommender); assert.deepEqual(calls, ["gemini"]);
 });
 
+test("optional Gemini selection uses the canonical default model", () => {
+  const calls: string[] = [];
+  const selection = selectRecommendationProvider({ SUTRA_AI_PROVIDER: "gemini", GEMINI_API_KEY: "g" }, factories(calls));
+  assert.equal(selection.model, DEFAULT_GEMINI_MODEL);
+  assert.deepEqual(calls, ["gemini"]);
+});
+
 test("AI-required mode selects Gemini exclusively and records the requirement", () => {
   const calls: string[] = [];
   const selection = selectRecommendationProvider({
@@ -208,6 +216,7 @@ test("AI-required mode selects Gemini exclusively and records the requirement", 
     SUTRA_AI_PROVIDER: "auto",
     GEMINI_API_KEY: "g",
     OPENAI_API_KEY: "o",
+    SUTRA_GEMINI_MODEL: "gemini-test",
   }, factories(calls));
   assert.equal(selection.aiRequired, true);
   assert.equal(selection.provider, "gemini");
@@ -232,9 +241,21 @@ test("AI-required mode refuses missing Gemini credentials and conflicting OpenAI
   assert.deepEqual(calls, []);
 });
 
-test("AI-required mode reports Gemini initialization failure without exposing provider details", () => {
+test("AI-required mode rejects a missing Gemini model before constructing a provider", () => {
+  const calls: string[] = [];
   const selection = selectRecommendationProvider(
     { SUTRA_AI_REQUIRED: "true", GEMINI_API_KEY: "g" },
+    factories(calls),
+  );
+  assert.equal(selection.aiRequired, true);
+  assert.equal(selection.recommender, undefined);
+  assert.equal(selection.diagnostic, "AI-required mode needs an explicitly configured SUTRA_GEMINI_MODEL.");
+  assert.deepEqual(calls, []);
+});
+
+test("AI-required mode reports Gemini initialization failure without exposing provider details", () => {
+  const selection = selectRecommendationProvider(
+    { SUTRA_AI_REQUIRED: "true", GEMINI_API_KEY: "g", SUTRA_GEMINI_MODEL: "gemini-test" },
     { gemini: () => { throw new Error("private provider initialization detail"); }, openai: () => fakeProvider },
   );
   assert.equal(selection.aiRequired, true);
