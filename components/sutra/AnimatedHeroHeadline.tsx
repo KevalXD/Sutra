@@ -7,17 +7,32 @@ const phrases = ["breaks,", "is delayed,", "is cancelled,"];
 
 export function AnimatedHeroHeadline() {
   const [index, setIndex] = useState(0);
+  const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return;
-    }
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    if (reduceMotion) return;
+
+    let exitTimer: ReturnType<typeof setTimeout>;
+    let enterTimer: ReturnType<typeof setTimeout>;
 
     const interval = window.setInterval(() => {
-      setIndex((current) => (current + 1) % phrases.length);
-    }, 2600);
+      setLeaving(true);
 
-    return () => window.clearInterval(interval);
+      exitTimer = setTimeout(() => {
+        setIndex((current) => (current + 1) % phrases.length);
+        setLeaving(false);
+      }, 350);
+    }, 4200);
+
+    return () => {
+      window.clearInterval(interval);
+      clearTimeout(exitTimer);
+      clearTimeout(enterTimer);
+    };
   }, []);
 
   return (
@@ -28,17 +43,14 @@ export function AnimatedHeroHeadline() {
       <span className="block whitespace-nowrap">When travel</span>
 
       <span className="sutra-word-slot text-green-bright">
-        {phrases.map((phrase, i) => (
-          <span
-            key={phrase}
-            aria-hidden="true"
-            className={`sutra-word ${
-              index === i ? "sutra-word-active" : ""
-            }`}
-          >
-            {phrase}
-          </span>
-        ))}
+        <span
+          key={index}
+          className={`sutra-word ${
+            leaving ? "sutra-word-exit" : "sutra-word-enter"
+          }`}
+        >
+          {phrases[index]}
+        </span>
       </span>
 
       <span className="block">Sutra repairs the journey.</span>
