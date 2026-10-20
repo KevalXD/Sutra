@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, CircleAlert, Clock3, Eye, Route, Train } from "lucide-react";
+import { Check, CircleAlert, Clock3, Eye, Plane, Route, Train } from "lucide-react";
 import type { DisruptionAnalysis, Itinerary, RecoveryCandidate } from "@/lib/types";
 import { day, fmtDuration, formatMoney, hm } from "@/lib/format";
 
@@ -29,7 +29,7 @@ function JourneyStops({ bookings, original, disruption }: { bookings: Itinerary[
       return <li key={booking.id} className={`relative border-l-2 pl-5 ${disrupted ? "border-danger" : timingChanged ? "border-green-bright" : "border-line-strong"}`}>
         <span aria-hidden className={`absolute -left-[7px] top-1 grid size-3 place-items-center rounded-full ${disrupted ? "bg-danger" : timingChanged ? "bg-green-bright" : "bg-line-strong"}`} />
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="font-medium text-ink">{booking.origin} <span className="text-muted">to</span> {booking.dest}</p>
+          <p className="font-medium text-ink"><span className="mr-1 inline-flex align-text-bottom">{booking.kind === "flight" ? <Plane aria-label="Flight" className="size-4 text-blue-bright" /> : <Train aria-label="Train" className="size-4 text-blue-bright" />}</span>{booking.origin} <span className="text-muted">to</span> {booking.dest}</p>
           {disrupted && <span className="rounded-full border border-danger/60 px-2 py-0.5 font-mono text-[11px] uppercase tracking-wide text-danger">{disruption?.disruption.kind === "cancel" ? "Cancelled" : "Disrupted"}</span>}
           {!original && timingChanged && <span className="rounded-full border border-green/60 px-2 py-0.5 font-mono text-[11px] uppercase tracking-wide text-green-bright">Recovered timing</span>}
         </div>

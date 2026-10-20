@@ -22,6 +22,30 @@ const noFeasibleAlternatives: Alternative[] = [
 const technicalErrorDisruption: Disruption = { ...goldenDisruption, scenarioId: "technical-error-retry-01" };
 const goldenRailBDisruption: Disruption = { source: "SIMULATED", scenarioId: "golden-rail-b-delay-01", bookingId: "RAIL-B", kind: "delay", delayMinutes: 120 };
 
+/** Synthetic multimodal fixture. It is intentionally not live airline, rail, hotel, or activity inventory. */
+const flightRailTrip: Trip = {
+  id: "trip-bengaluru-delhi-jaipur-01", version: 1, currency: "INR",
+  items: [
+    { id: "FLIGHT-BLR-DEL", kind: "transport", label: "Simulated Bengaluru–Delhi flight", mode: "flight", legs: [{ id: "FLIGHT-BLR-DEL-LEG-1", bookingId: "FLIGHT-BLR-DEL", origin: "Bengaluru (BLR)", destination: "Delhi (DEL)", originLocationId: "airport:blr", destinationLocationId: "station:new-delhi", departureAt: "2026-12-05T08:00:00", arrivalAt: "2026-12-05T10:40:00" }] },
+    { id: "RAIL-DEL-JAI", kind: "transport", label: "Simulated Delhi–Jaipur rail", mode: "rail", legs: [{ id: "RAIL-DEL-JAI-LEG-1", bookingId: "RAIL-DEL-JAI", origin: "New Delhi Railway Station", destination: "Jaipur Junction", originLocationId: "station:new-delhi", destinationLocationId: "city:jaipur", departureAt: "2026-12-05T12:00:00", arrivalAt: "2026-12-05T16:15:00" }] },
+    { id: "HOTEL-JAI-1", kind: "accommodation", label: "Simulated Jaipur hotel", location: "Jaipur", locationId: "city:jaipur", checkInAt: "2026-12-05T17:00:00", checkOutAt: "2026-12-06T10:00:00" },
+    { id: "ACTIVITY-JAI-1", kind: "activity", label: "Simulated Jaipur evening activity", location: "Jaipur", locationId: "city:jaipur", startsAt: "2026-12-05T18:00:00", endsAt: "2026-12-05T20:00:00" },
+  ],
+  dependencies: [
+    { id: "DEP-FLIGHT-RAIL-CONNECTION", fromItemId: "FLIGHT-BLR-DEL", toItemId: "RAIL-DEL-JAI", kind: "CONNECTION", minimumBufferMinutes: 75 },
+    { id: "DEP-FLIGHT-RAIL-LOCATION", fromItemId: "FLIGHT-BLR-DEL", toItemId: "RAIL-DEL-JAI", kind: "LOCATION" },
+    { id: "DEP-RAIL-HOTEL-WINDOW", fromItemId: "RAIL-DEL-JAI", toItemId: "HOTEL-JAI-1", kind: "WINDOW", arrivalWindow: { latestAt: "2026-12-05T19:00:00" } },
+    { id: "DEP-RAIL-ACTIVITY-WINDOW", fromItemId: "RAIL-DEL-JAI", toItemId: "ACTIVITY-JAI-1", kind: "WINDOW", arrivalWindow: { latestAt: "2026-12-05T17:30:00" } },
+  ],
+  constraints: { latestArrivalAt: "2026-12-05T16:30:00", maxExtraBudget: 4000, noOvernight: true, softPreferences: ["EARLIER_ARRIVAL"] },
+};
+const flightCancellationDisruption: Disruption = { source: "SIMULATED", scenarioId: "bengaluru-delhi-flight-cancellation-01", bookingId: "FLIGHT-BLR-DEL", kind: "cancellation" };
+const flightCancellationAlternatives: Alternative[] = [
+  { id: "FDJ-A-ALT", replacementForBookingId: "FLIGHT-BLR-DEL", departureAt: "2026-12-05T07:30:00", arrivalAt: "2026-12-05T10:15:00", extraCost: 3500, source: "SIMULATED_OFFER" },
+  { id: "FDJ-B-ALT", replacementForBookingId: "FLIGHT-BLR-DEL", departureAt: "2026-12-05T08:30:00", arrivalAt: "2026-12-05T11:20:00", extraCost: 1200, source: "SIMULATED_OFFER" },
+  { id: "FDJ-C-ALT", replacementForBookingId: "FLIGHT-BLR-DEL", departureAt: "2026-12-05T07:20:00", arrivalAt: "2026-12-05T10:10:00", extraCost: 6000, source: "SIMULATED_OFFER" },
+];
+
 const bengaluruTrip: Trip = {
   id: "trip-mangaluru-bengaluru-01", version: 1, currency: "INR",
   items: [
@@ -103,6 +127,7 @@ const chennaiRailFAlternatives: Alternative[] = [
 
 export interface ScenarioFixture { id: string; trip: Trip; disruption: Disruption; alternatives: Alternative[]; profile?: SupportedDisruptionProfile; failOnFirstAttempt?: true }
 export const recoveryScenarios: readonly ScenarioFixture[] = [
+  { id: flightCancellationDisruption.scenarioId, trip: flightRailTrip, disruption: flightCancellationDisruption, alternatives: flightCancellationAlternatives, profile: { id: flightCancellationDisruption.scenarioId, label: "Flight cancellation", bookingId: "FLIGHT-BLR-DEL", bookingLabel: "Simulated Bengaluru–Delhi flight", kind: "cancellation" } },
   { id: goldenDisruption.scenarioId, trip: goldenTrip, disruption: goldenDisruption, alternatives: goldenAlternatives, profile: { id: goldenDisruption.scenarioId, label: "Rail A delay", bookingId: "RAIL-A", bookingLabel: "Rail A", kind: "delay", delayRange: { minimumMinutes: 30, maximumMinutes: 180, stepMinutes: 30 } } },
   { id: cancellationDisruption.scenarioId, trip: goldenTrip, disruption: cancellationDisruption, alternatives: cancellationAlternatives, profile: { id: cancellationDisruption.scenarioId, label: "Rail A cancellation", bookingId: "RAIL-A", bookingLabel: "Rail A", kind: "cancellation" } },
   { id: cancellationNoRecoveryDisruption.scenarioId, trip: goldenTrip, disruption: cancellationNoRecoveryDisruption, alternatives: cancellationNoRecoveryAlternatives },
