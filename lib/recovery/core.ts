@@ -17,10 +17,11 @@ export type RecommendationDiagnostic = {
   rejection?: string;
 };
 export interface RecommendationProvider {
-  recommend(context: { trip: Trip; impact: ImpactAnalysis; feasibleCandidates: ValidatedRecoveryCandidate[]; activePriority?: RecoveryPriority }): Promise<RecommendationDraft>;
+  recommend(context: { trip: Trip; impact: ImpactAnalysis; feasibleCandidates: ValidatedRecoveryCandidate[]; activePriority?: RecoveryPriority; signal?: AbortSignal }): Promise<RecommendationDraft>;
 }
 export interface RecoveryDeps {
   recommender?: RecommendationProvider;
+  aiRequired?: boolean;
   /** Total wall-clock budget for the optional AI recommendation, including provider retries. */
   recommendationTimeoutMs?: number;
   findAlternatives?: (input: { trip: Trip; disruption: Disruption; impact: ImpactAnalysis }) => Promise<Alternative[]>;
@@ -28,7 +29,7 @@ export interface RecoveryDeps {
 }
 
 /** The interactive route never waits longer than this for an optional AI recommendation. */
-export const AI_RECOMMENDATION_BUDGET_MS = 10_000;
+export const AI_RECOMMENDATION_BUDGET_MS = 30_000;
 /** Demo guardrail: values beyond this are almost certainly an accidental input. */
 export const MAX_EXTRA_BUDGET = 100_000;
 
@@ -52,15 +53,20 @@ function parseOverrides(value: unknown): ConstraintOverrides | undefined {
 
 async function recommendWithinBudget(provider: RecommendationProvider, context: Parameters<RecommendationProvider["recommend"]>[0], timeoutMs: number) {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const controller = new AbortController();
   try {
     return await Promise.race([
-      Promise.resolve().then(() => provider.recommend(context)),
+      Promise.resolve().then(() => provider.recommend({ ...context, signal: controller.signal })),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new RecommendationProviderError("PROVIDER_TIMEOUT", `AI recommendation exceeded its ${timeoutMs}ms time budget.`)), timeoutMs);
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new RecommendationProviderError("PROVIDER_TIMEOUT", `AI recommendation exceeded its ${timeoutMs}ms time budget.`));
+        }, timeoutMs);
       }),
     ]);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
+    controller.abort();
   }
 }
 
@@ -296,6 +302,7 @@ export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDep
   if (!candidates.some((x) => x.feasible)) return { ...base, status: "NO_FEASIBLE_RECOVERY", recommendation: null, recoveryPlan: null, actions: [], decisionAudit: auditFor(runId, "NO_FEASIBLE_RECOVERY", "NONE", null, trip.constraints, trip, impact, candidates, priority) };
   const feasible = candidates.filter((candidate) => candidate.feasible);
   let recommendation: RecoveryRecommendation | undefined;
+  if (deps.aiRequired && !deps.recommender) throw new TechnicalFailure("AI_UNAVAILABLE", "A validated Gemini recommendation is required but unavailable.");
   if (deps.recommender) {
     try {
       const timeoutMs = deps.recommendationTimeoutMs ?? AI_RECOMMENDATION_BUDGET_MS;
@@ -308,6 +315,7 @@ export async function runRecovery(request: RecoveryRunRequest, deps: RecoveryDep
       else deps.onRecommendationDiagnostic?.({ category: "PROVIDER_FAILURE" });
     }
   }
+  if (deps.aiRequired && !recommendation) throw new TechnicalFailure("AI_UNAVAILABLE", "A validated Gemini recommendation is required but unavailable.");
   recommendation ??= fallback(candidates, priority); const selected = candidates.find((x) => x.id === recommendation.selectedCandidateId)!; const recoveryPlan = plan(trip, impact, selected);
   return { ...base, status: "RECOVERED", recommendation, recoveryPlan, actions: actions(recoveryPlan, selected), decisionAudit: auditFor(runId, "RECOVERED", recommendation.decisionSource, recommendation.selectedCandidateId, trip.constraints, trip, impact, candidates, priority) };
 }

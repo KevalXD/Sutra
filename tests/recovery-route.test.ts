@@ -14,3 +14,14 @@ test("the canonical recovery route injects an explicitly selected provider into 
   assert.equal(body.recommendation.selectedCandidateId, "RC-A");
   assert.equal(body.recommendation.decisionSource, "AI");
 });
+
+test("the canonical route converts missing required Gemini configuration into AI_UNAVAILABLE", async () => {
+  const outcome = await executeRecoveryRun(
+    { tripId: goldenTrip.id, tripVersion: goldenTrip.version, disruption: goldenDisruption },
+    { aiRequired: true, diagnostic: "AI-required mode needs GEMINI_API_KEY." },
+  );
+  assert.equal(outcome.status, 500);
+  const body = outcome.body as { error: { code: string }; decisionAudit: { decisionSource: string } };
+  assert.equal(body.error.code, "AI_UNAVAILABLE");
+  assert.equal(body.decisionAudit.decisionSource, "NONE");
+});

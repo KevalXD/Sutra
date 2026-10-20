@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { demoScenarioFor } from "@/lib/domain/fixtures/recovery-scenarios";
 import { goldenDisruption, goldenTrip } from "@/lib/domain/fixtures/golden-rail-delay-01";
 import { getTrip as canonicalTrip, runRecovery } from "@/lib/recovery/core";
-import { presentCandidate, presentRun, presentTrip } from "@/lib/rail-presentation";
+import { presentCandidate, presentImpact, presentRun, presentTrip } from "@/lib/rail-presentation";
 import { getCanonicalTrip, getJourneyCatalogue, getTrip, runConfiguredRecovery, runScenario } from "@/lib/api";
 import { violationLabel } from "@/lib/format";
 
@@ -139,9 +139,9 @@ test("workbench client loads the API catalogue and sends a configured canonical 
 test("workbench exposes an API-backed simulated-data configuration surface", async () => {
   const { RecoveryWorkbench } = await import("@/components/sutra/recovery-workbench");
   const html = renderToStaticMarkup(createElement(RecoveryWorkbench));
-  assert.match(html, /Plan a recovery/);
+  assert.match(html, /Find a way forward/);
   assert.match(html, /SIMULATED DATA/);
-  assert.match(html, /What happened to your journey/);
+  assert.match(html, /What happened, and what would work for you/);
   assert.match(html, /Loading simulated journey catalogue/);
 });
 
@@ -160,11 +160,19 @@ test("presentation renders validator-provided delayed timing and connection buff
   assert.deepEqual(rcA.connectionChecks?.[0] && { departure: rcA.connectionChecks[0].replacementDepartureAt, buffer: rcA.connectionChecks[0].actualBufferMinutes, minimum: rcA.connectionChecks[0].minimumBufferMinutes }, { departure: "2026-11-10T15:30:00", buffer: 30, minimum: 30 });
   assert.deepEqual(rcB.connectionChecks?.[0] && { departure: rcB.connectionChecks[0].replacementDepartureAt, buffer: rcB.connectionChecks[0].actualBufferMinutes, minimum: rcB.connectionChecks[0].minimumBufferMinutes }, { departure: "2026-11-10T16:00:00", buffer: 60, minimum: 30 });
   const { RecoveryResultView } = await import("@/components/sutra/result");
-  const html = renderToStaticMarkup(createElement(RecoveryResultView, { trip: presentTrip(goldenTrip), result: projected.result, candidates: projected.candidates, selectedId: projected.selectedId, onRestart: noop }));
-  assert.match(html, /Disrupted timing/);
+  const html = renderToStaticMarkup(createElement(RecoveryResultView, {
+    tab: "journey",
+    trip: presentTrip(goldenTrip),
+    result: projected.result,
+    candidates: projected.candidates,
+    selectedId: projected.selectedId,
+    disruption: presentImpact(goldenDisruption, run.impact),
+    onRestart: noop,
+  }));
+  assert.match(html, /Original plan and recovery route/);
   assert.match(html, /Disrupted/);
+  assert.match(html, /Recovered timing/);
   assert.doesNotMatch(html, /CHANGED RAIL-A/);
-  assert.match(html, /30m buffer/);
   assert.match(html, /1h 00m buffer/);
 });
 
