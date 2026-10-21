@@ -1,75 +1,103 @@
-# Sutra - Team Vyom
+<div align="center">
 
-> **When travel breaks, Sutra repairs the journey.**
+<img src="docs/assets/sutra-banner.svg" alt="Sutra: when travel breaks, Sutra repairs the journey. A rail route with a delayed first leg and a validated replacement for the onward leg." width="100%">
 
-Sutra is a rail-first travel-disruption recovery prototype for DevHack 2026, **PS 4.1 - AI Agent for Travel Disruption Recovery**. It traces how a disruption spreads through a connected itinerary, validates simulated recovery options against traveller constraints in backend code, and returns a repaired plan with its trade-offs. AI can help choose among options that are already feasible; it does not decide feasibility.
+<br>
 
-**[Live deployment](https://sutra-five-opal.vercel.app)** · **[Source code](https://github.com/KevalXD/Sutra)**
+**A rail-first travel-disruption recovery prototype.**<br>
+Sutra traces how a disruption spreads through a connected journey, validates simulated recovery options in backend code, and returns a repaired plan with its trade-offs. AI can help choose between options that are already feasible. It never decides what is feasible.
 
-## Contents
+<br>
 
-- [Overview](#overview)
-- [Problem](#problem)
-- [Current capabilities](#current-capabilities)
-- [How the recovery workflow works](#how-the-recovery-workflow-works)
-- [What is live and what is simulated](#what-is-live-and-what-is-simulated)
-- [Architecture](#architecture)
-- [Technology stack](#technology-stack)
-- [Live deployment](#live-deployment)
-- [Run locally](#run-locally)
-- [Environment variables](#environment-variables)
-- [Testing and validation](#testing-and-validation)
-- [Current limitations](#current-limitations)
-- [Team and project details](#team-and-project-details)
+[![Live demo](https://img.shields.io/badge/LIVE_DEMO-open_the_app-4fd18b?style=for-the-badge)](https://sutra-five-opal.vercel.app)
+&nbsp;
+[![Source code](https://img.shields.io/badge/SOURCE_CODE-GitHub-24292f?style=for-the-badge&logo=github)](https://github.com/KevalXD/Sutra)
 
-## Overview
+<br>
 
-Sutra combines three things in one Next.js application:
+![Next.js 15](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs&logoColor=white)
+![React 19](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)
+![TypeScript 5](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Three.js](https://img.shields.io/badge/Three.js-3D_globe-000000?logo=threedotjs&logoColor=white)
+![Tailwind CSS 4](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-green)
 
-1. A **recovery workbench** where a traveller picks a simulated journey and disruption, sets constraints, and gets validated recovery options.
-2. A **backend recovery engine** that analyses impact, checks every candidate against hard constraints, and produces an auditable result.
-3. A **manual live railway-status lookup** (RailRadar) that shows a train's reported running status. It is informational and is kept separate from the recovery engine.
+**DevHack 2026 · PS 4.1 — AI Agent for Travel Disruption Recovery · Team Vyom**
 
-## Problem
+[Preview](#product-preview) · [What it does](#what-sutra-does) · [How it works](#how-it-works) · [Architecture](#architecture) · [Live vs simulated](#live-versus-simulated) · [Quick start](#quick-start) · [Developer docs](#developer-documentation) · [Limitations](#limitations)
 
-A train delay or cancellation rarely affects a single ticket. It can break an onward connection, push the arrival past a deadline, and ripple into later commitments such as an activity or a hotel check-in. A replacement can look attractive and still exceed the budget, miss the deadline, or require overnight travel. Travellers need recovery planned against the **whole journey**, with the trade-offs visible.
+</div>
 
-## Current capabilities
+---
 
-- **Recovery workbench** (`/workbench`): choose one of five simulated journeys and a supported disruption, set the arrival deadline, extra-budget limit, no-overnight rule and a priority (lower cost or earlier arrival), then run recovery.
-- **Configurable disruptions:** delay profiles accept 30–180 minutes in 30-minute steps; cancellation profiles are fixed. Details are in the [journey API contract](docs/CONFIGURABLE_JOURNEY_API_CONTRACT.md).
-- **Connected-itinerary validation:** candidates are checked for connections, location continuity, time windows and temporal dependencies between bookings, including activities and hotels where a journey has them.
-- **Backend decision audit:** every recovered or no-feasible response carries the effective constraints, the decision source and each candidate's checked rules and violations. The UI renders this audit instead of guessing feasibility locally.
-- **Optional AI recommendations:** server-side Gemini or OpenAI adapters rank only candidates that already passed validation. The backend then checks the AI's selection and its claims itself.
-- **Deterministic fallback:** when AI is not configured, unavailable, times out or returns something the backend rejects, a deterministic ranking is used and the response says so (`decisionSource: "DETERMINISTIC_FALLBACK"`).
-- **Distinct outcomes:** `RECOVERED`, `NO_FEASIBLE_RECOVERY` and `TECHNICAL_ERROR` are separate states, each with its own presentation.
-- **Traveller control:** proposed actions are marked `"automated": false`. Sutra does not book, cancel, pay or refund.
-- **Guided demo** (`/demo?scenario=…`): four deterministic scenarios on the golden Mangaluru Central → Hassan Junction → Mysuru Junction trip.
-- **Live rail status:** a manual **Check live status** control for a five-digit train number, available when `RAILRADAR_API_KEY` is configured on the server.
+> [!NOTE]
+> All journeys, bookings, disruptions and recovery alternatives are **simulated**. Sutra does not book, cancel, pay or refund, and it does not check live ticket availability or fares.
 
-## How the recovery workflow works
+## Product preview
 
-1. **Select** a simulated journey and a disruption profile, and set traveller constraints.
-2. **Analyse impact:** identify the disrupted booking and the bookings that depend on it.
-3. **Generate candidates:** fixture-owned, simulated alternatives for that disruption.
-4. **Validate:** check each candidate against the arrival deadline, extra budget, overnight rule and booking dependencies. Candidates that fail are kept with their violations and are never recommended.
-5. **Recommend:**
-   - If an AI provider is configured, it receives only feasible candidates and returns a structured selection. The backend validates the choice, and the explanation shown to the traveller is generated from verified data.
-   - Otherwise, or if the AI step fails or is rejected, the engine ranks feasible candidates deterministically (lowest extra cost by default, earliest arrival when that priority is chosen).
-6. **Return** the result, recovery plan, proposed actions and decision audit for the traveller to review.
+Real screenshots of the running application, captured from a local run of this repository with no AI key configured, so the recommendation shown is the deterministic fallback. Journeys and replacement options are simulated.
 
-If no candidate is feasible, Sutra returns `NO_FEASIBLE_RECOVERY` with the violated constraints and proposes no actions. A recommendation is labelled `AI` only after independent validation.
+<p align="center">
+  <img src="docs/assets/screenshots/workbench-configuration.png" alt="The Sutra recovery workbench: a manual live train-status check, then a form to pick a simulated journey, the disruption, and traveller preferences" width="100%">
+  <br>
+  <sub><b>Recovery workbench.</b> Pick a simulated journey and disruption, then set the traveller's limits. The live train-status check is separate and says it does not change recovery alternatives.</sub>
+</p>
 
-## What is live and what is simulated
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/assets/screenshots/recovery-result.png" alt="Recovery result: the best travel option, each constraint marked satisfied, and the decision source shown as deterministic fallback" width="100%">
+      <br>
+      <sub><b>Result with a decision audit.</b> Each constraint is shown with its outcome, and the decision source is stated.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/assets/screenshots/alternatives-compared.png" alt="Alternatives compared: one feasible candidate, the selected recovery, and an infeasible candidate that fails the arrival deadline" width="100%">
+      <br>
+      <sub><b>Every candidate, checked.</b> Candidates that break a constraint are shown as infeasible, with the reason.</sub>
+    </td>
+  </tr>
+</table>
 
-| Area | Status |
-| --- | --- |
-| Train running status (workbench **Check live status**) | **Live and manual.** One request to RailRadar per click, through Sutra's server. Informational only. It does not change recovery candidates, feasibility or ranking. |
-| Journeys, bookings, disruptions | **Simulated** fixtures. |
-| Replacement candidates, times and costs | **Simulated** fixtures. |
-| Feasibility validation and decision audit | **Real backend logic** applied to the simulated data. |
-| AI recommendation | **Real provider call** when configured and valid; otherwise deterministic fallback. |
-| Ticket availability, fares, PNR, booking | **Not implemented.** |
+## What Sutra does
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>Journey recovery</h4>
+      A disruption on one leg is traced through the connected itinerary, including later bookings such as an activity or a hotel. Recovery is planned for the whole journey, not one ticket.
+    </td>
+    <td width="50%" valign="top">
+      <h4>Backend constraint validation</h4>
+      Every candidate is checked against the arrival deadline, extra budget, overnight rule and booking dependencies. A candidate that fails is kept with its violations and is never recommended.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>Optional AI recommendations</h4>
+      With a Gemini or OpenAI key configured on the server, the AI ranks only candidates that already passed validation. The backend then checks the AI's selection and its claims before it is shown.
+    </td>
+    <td width="50%" valign="top">
+      <h4>Deterministic fallback</h4>
+      If AI is not configured, is unavailable, or its result is rejected, a deterministic ranking is used and the response says so. Strict deployments can instead fail closed with <code>AI_UNAVAILABLE</code>.
+    </td>
+  </tr>
+</table>
+
+Also included: a guided demo of four scenarios, five simulated journeys in the workbench, a backend-authored decision audit, and a manual live train-status lookup. Proposed actions always carry `"automated": false`.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["1 · Select<br/>journey, disruption,<br/>constraints"] --> B["2 · Analyse<br/>impact on connected<br/>bookings"]
+    B --> C["3 · Generate<br/>simulated<br/>candidates"]
+    C --> D{"4 · Validate<br/>hard constraints"}
+    D -->|"some feasible"| E["5 · Recommend<br/>AI choice if accepted,<br/>else deterministic"]
+    E --> F["6 · Result<br/>plan, actions,<br/>decision audit"]
+    D -->|"none feasible"| G["NO_FEASIBLE_RECOVERY<br/>violations shown,<br/>no actions"]
+```
+
+Three outcomes are kept distinct: `RECOVERED`, `NO_FEASIBLE_RECOVERY` and `TECHNICAL_ERROR`. A recommendation is labelled `AI` only after the backend has independently validated it.
 
 ## Architecture
 
@@ -101,22 +129,149 @@ flowchart LR
     RR -.->|"displayed only"| UI
 ```
 
-The frontend and the API routes are one Next.js application deployed together. Live status reaches the UI for display only; no edge connects it to the recovery engine. In AI-required mode (see [Environment variables](#environment-variables)) a rejected or unavailable AI result returns a `TECHNICAL_ERROR` (`AI_UNAVAILABLE`) instead of using the fallback.
+The frontend and API routes are a single Next.js application deployed together. Live status reaches the UI **for display only**; no path connects it to the recovery engine. In AI-required mode, a rejected or unavailable AI result returns a `TECHNICAL_ERROR` (`AI_UNAVAILABLE`) instead of using the fallback.
 
-`sutra-backend-skeleton/` is retained as a separate reference implementation. The application does not import it; its unit tests are included in `npm run test`.
+`sutra-backend-skeleton/` is a separate reference implementation. The application does not import it; its unit tests run as part of `npm run test`.
 
-**API routes**
+## Live versus simulated
+
+| | Live | Simulated | Not implemented |
+| --- | --- | --- | --- |
+| **What** | Train running status from RailRadar, fetched manually | Journeys, bookings, disruptions, replacement candidates, times and costs | Live ticket availability, live fares, PNR verification, booking, cancellation, payment, refunds |
+| **How it behaves** | One server-side request per click on **Check live status** | Fixture data owned by the application | — |
+| **Role in recovery** | **None.** Informational only; it does not drive, recalculate or rank alternatives | The only input to the recovery engine | — |
+
+Real logic runs on the simulated data: impact analysis, constraint validation, the decision audit, and the AI-or-fallback recommendation.
+
+> [!IMPORTANT]
+> Live railway status does **not** currently feed the recovery engine. Recovery alternatives are not generated from live railway availability.
+
+## Quick start
+
+**Requirements:** Node.js 20 LTS recommended (Next.js 15 requires 18.18 or newer), npm, and internet access on first run for Google Fonts.
+
+```bash
+git clone https://github.com/KevalXD/Sutra.git
+cd Sutra
+npm ci
+npm run dev
+```
+
+Open <http://localhost:3000>, then try:
+
+- `/workbench`: configure a simulated journey and run recovery
+- `/demo?scenario=delay` (also `cancellation`, `infeasible`, `error`): the guided demo on the Mangaluru Central → Hassan Junction → Mysuru Junction trip
+- `/how-it-works`: a plain-language overview
+
+No API keys are needed. Without them, recovery uses the deterministic fallback and the live-status control reports that it is not configured. To try AI or live status, see **Environment variables** under [Developer documentation](#developer-documentation).
+
+## Validation status
+
+| Check | Result on 21 October 2026 |
+| --- | --- |
+| Automated tests | 131 passed |
+| Type checking | Passed |
+| Lint | Passed |
+| Production build | Passed |
+
+These are results from the submission validation run, not a guarantee for later commits. Re-run the commands under **Testing and validation** in [Developer documentation](#developer-documentation) after any change.
+
+## Developer documentation
+
+<details>
+<summary><b>Environment variables</b></summary>
+
+<br>
+
+Optional configuration lives in `.env.local`, which is git-ignored. Never commit keys and never prefix them with `NEXT_PUBLIC_`; all of them are read server-side only.
+
+```bash
+cp .env.example .env.local
+```
+
+```powershell
+Copy-Item .env.example .env.local
+```
+
+`.env.example` sets `SUTRA_AI_REQUIRED=false`, so it can be copied as-is without any key.
+
+| Variable | In `.env.example` | Behaviour |
+| --- | --- | --- |
+| `SUTRA_AI_PROVIDER` | `gemini` | `auto`, `gemini` or `openai`. Unset or `auto` prefers Gemini when `GEMINI_API_KEY` is set, otherwise OpenAI when `OPENAI_API_KEY` is set. |
+| `GEMINI_API_KEY` | empty | Enables the Gemini adapter. |
+| `SUTRA_GEMINI_MODEL` | `gemini-3.6-flash` | Gemini model. Optional mode defaults to `gemini-3.6-flash` when unset; AI-required mode needs it set explicitly. |
+| `SUTRA_AI_REQUIRED` | `false` | Defaults to `false` when unset. See fail-closed behaviour below. |
+| `RAILRADAR_API_KEY` | empty | Enables **Check live status** in the workbench. Without it the lookup reports that live status is not configured. |
+| `OPENAI_API_KEY` | not listed | Enables the OpenAI adapter. Supported in code. |
+| `SUTRA_OPENAI_MODEL` | not listed | OpenAI model. Defaults to `gpt-4o-mini`. |
+
+To print the effective settings without exposing key values:
+
+```bash
+npm run ai:config
+```
+
+</details>
+
+<details>
+<summary><b>AI provider configuration and behaviour</b></summary>
+
+<br>
+
+- **Selection is fixed per run.** One provider is chosen from the environment. There is no runtime switch from a failing provider to the other one.
+- **What the provider sees.** Only candidates that already passed validation. It returns a structured selection, and the backend independently checks the chosen candidate and the provider's claims. The explanation shown to the traveller is generated from verified data.
+- **Optional mode (default).** A missing key, provider error, timeout, malformed output or rejected recommendation falls back to deterministic ranking: lowest extra cost by default, earliest arrival when that priority is chosen. The response reports `decisionSource: "DETERMINISTIC_FALLBACK"`.
+- **AI-required mode (`SUTRA_AI_REQUIRED=true`).** Fail-closed. It requires Gemini (selecting OpenAI is rejected), a key and an explicitly set `SUTRA_GEMINI_MODEL`. If a validated recommendation is missing, the run returns `TECHNICAL_ERROR` with code `AI_UNAVAILABLE` rather than a deterministic result.
+- **Secrets.** Keys are read only in server code and are not included in browser bundles or API responses.
+- **Opt-in real-provider check.** `npm run test:ai:smoke` runs recovery through the same provider selection against a real Gemini key. It is separate from `npm run test`.
+
+</details>
+
+<details>
+<summary><b>API routes</b></summary>
+
+<br>
 
 | Route | Purpose |
 | --- | --- |
-| `GET /api/v1/trips` | Catalogue of simulated journeys and supported disruption profiles |
+| `GET /api/v1/trips` | Catalogue of simulated journeys and their supported disruption profiles |
 | `GET /api/v1/trips/:tripId` | Canonical simulated trip; `404` if unknown |
-| `POST /api/v1/recovery-runs` | Run a simulated recovery (request shape in the [API contract](docs/CONFIGURABLE_JOURNEY_API_CONTRACT.md)) |
+| `POST /api/v1/recovery-runs` | Run a simulated recovery |
 | `GET /api/v1/rail-status?trainNumber=NNNNN` | Validated RailRadar running status for a five-digit train number |
 
-**Pages:** `/` (home), `/how-it-works`, `/workbench`, `/demo?scenario=delay|cancellation|infeasible|error`.
+**Pages:** `/`, `/how-it-works`, `/workbench`, `/demo?scenario=delay|cancellation|infeasible|error`.
 
-## Technology stack
+**Example recovery request**
+
+```json
+{
+  "tripId": "trip-golden-rail-delay-01",
+  "tripVersion": 1,
+  "disruption": {
+    "source": "SIMULATED",
+    "scenarioId": "golden-rail-delay-01",
+    "bookingId": "RAIL-A",
+    "kind": "delay",
+    "delayMinutes": 120
+  },
+  "constraintOverrides": { "maxExtraBudget": 500, "noOvernight": true, "priority": "LOWER_COST" }
+}
+```
+
+Delay profiles accept 30 to 180 minutes in 30-minute steps. `constraintOverrides` is optional and accepts `latestArrivalAt`, `maxExtraBudget`, `noOvernight` and `priority` (`LOWER_COST` or `EARLIER_ARRIVAL`).
+
+**Responses.** `RECOVERED` and `NO_FEASIBLE_RECOVERY` return `200` and include a backend-authored `decisionAudit`. Invalid input returns `400`, an unknown trip or booking `404`, a stale `tripVersion` `409`, and other rejected input `422`. A technical failure returns `500` with `status: "TECHNICAL_ERROR"`.
+
+**Live status.** `/api/v1/rail-status` is called only when the user clicks **Check live status**. There is no polling or background refresh. The server-side request uses a 120-second revalidation setting, the response keeps RailRadar's own `lastUpdatedAt`, and failures are shown as unavailable rather than replaced with fixture data.
+
+Full contract: [`docs/CONFIGURABLE_JOURNEY_API_CONTRACT.md`](docs/CONFIGURABLE_JOURNEY_API_CONTRACT.md).
+
+</details>
+
+<details>
+<summary><b>Technology stack</b></summary>
+
+<br>
 
 | Area | Technologies |
 | --- | --- |
@@ -130,70 +285,12 @@ The frontend and the API routes are one Next.js application deployed together. L
 
 Versions follow `package.json`.
 
-## Live deployment
+</details>
 
-**<https://sutra-five-opal.vercel.app>**
+<details>
+<summary><b>Testing and validation</b></summary>
 
-| Page | URL |
-| --- | --- |
-| Workbench | <https://sutra-five-opal.vercel.app/workbench> |
-| Demo scenarios | `/demo?scenario=delay`, `cancellation`, `infeasible`, `error` |
-
-Which AI and RailRadar settings the hosted instance uses is a deployment configuration that this repository cannot show, so the behaviour of that instance may differ from a default local run.
-
-## Run locally
-
-**Requirements:** Node.js 20 LTS recommended (Next.js 15 requires 18.18 or newer), npm, and internet access on first build/run for Google Fonts.
-
-```bash
-git clone https://github.com/KevalXD/Sutra.git
-cd Sutra
-npm ci
-npm run dev
-```
-
-Open <http://localhost:3000>, then try `/workbench` or `/demo?scenario=delay`. With no `.env.local`, the app runs with deterministic fallback and live status shows as not configured.
-
-To serve a production build locally:
-
-```bash
-npm run build
-npm run start
-```
-
-## Environment variables
-
-Optional configuration lives in `.env.local`, which is git-ignored. Never commit keys, and never prefix them with `NEXT_PUBLIC_`; all of them are read server-side only.
-
-```bash
-cp .env.example .env.local
-```
-
-```powershell
-Copy-Item .env.example .env.local
-```
-
-> **Default local behaviour:** `.env.example` sets `SUTRA_AI_REQUIRED=false`. You can copy it without adding an AI key; recovery then uses deterministic fallback when Gemini is not configured or unavailable. Set `SUTRA_AI_REQUIRED=true` only when you want fail-closed Gemini behaviour.
-
-| Variable | In `.env.example` | Behaviour |
-| --- | --- | --- |
-| `SUTRA_AI_PROVIDER` | `gemini` | `auto`, `gemini` or `openai`. Unset or `auto` prefers Gemini when `GEMINI_API_KEY` is set, otherwise OpenAI when `OPENAI_API_KEY` is set. |
-| `GEMINI_API_KEY` | empty | Enables the Gemini adapter. |
-| `SUTRA_GEMINI_MODEL` | `gemini-3.6-flash` | Gemini model. Optional mode defaults to `gemini-3.6-flash` when unset; AI-required mode needs it set explicitly. |
-| `SUTRA_AI_REQUIRED` | `false` | Default is `false` when unset. When `true`, Sutra is fail-closed: it requires Gemini (OpenAI is rejected), a key and an explicit model, and returns `AI_UNAVAILABLE` instead of a deterministic result if the validated recommendation is missing. |
-| `RAILRADAR_API_KEY` | empty | Enables the workbench live-status lookup. Without it the lookup reports that live status is not configured. |
-| `OPENAI_API_KEY` | not listed | Enables the OpenAI adapter. Supported in code. |
-| `SUTRA_OPENAI_MODEL` | not listed | OpenAI model. Defaults to `gpt-4o-mini`. |
-
-Provider selection is fixed per run: there is no runtime switch from a failing provider to the other one. To see the effective settings without printing key values:
-
-```bash
-npm run ai:config
-```
-
-Live status is fetched only when the user clicks **Check live status**: there is no polling or background refresh. The server-side RailRadar request uses a 120-second revalidation setting, and the response keeps RailRadar's own `lastUpdatedAt`. Errors are shown as unavailable and are not replaced with fixture data.
-
-## Testing and validation
+<br>
 
 Run from the repository root:
 
@@ -210,31 +307,54 @@ npm run build
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
 | `npm run build` | Next.js production build (fetches Google Fonts) |
+| `npm run start` | Serve the production build locally after building |
 | `npm run ai:config` | Print effective AI configuration without exposing keys |
 | `npm run test:ai:smoke` | Opt-in check against a real Gemini key; not part of `npm run test` |
 
-**Last verified run (21 October 2026, local `K:\sutra` working copy on Node.js v24.16.0):** `npm run test` ran 131 tests, all passing; `npm run typecheck`, `npm run lint`, and `npm run build` completed successfully. The production build fetched Google Fonts successfully in this environment.
+Optional Playwright browser checks (end-to-end scenarios, responsive layout, accessibility and focus) are described in [`qa/README.md`](qa/README.md).
 
-Optional Playwright browser checks are described in [`qa/README.md`](qa/README.md).
+</details>
 
-## Current limitations
+<details>
+<summary><b>Repository layout and further documentation</b></summary>
+
+<br>
+
+| Path | Contents |
+| --- | --- |
+| `app/` | App Router pages and the `/api/v1` route handlers |
+| `components/sutra/` | UI components, including the workbench and the 3D globe |
+| `lib/recovery/` | Recovery engine, request handling, provider selection and the Gemini and OpenAI adapters |
+| `lib/integrations/` | Server-side RailRadar adapter and its validated public shape |
+| `lib/domain/` | Domain types and the simulated trip and scenario fixtures |
+| `tests/` | Node test-runner suites |
+| `qa/` | Optional Playwright checks |
+| `scripts/` | AI configuration and smoke-test scripts, and the globe texture build tooling |
+| `sutra-backend-skeleton/` | Separate reference implementation, not used by the application |
+
+Further reading: [journey API contract](docs/CONFIGURABLE_JOURNEY_API_CONTRACT.md) · [product and UI specs](docs/spec/) · [planning documents](docs/planning/README.md) · [implementation notes](IMPLEMENTATION_NOTES.md)
+
+</details>
+
+## Limitations
+
+> [!WARNING]
+> Sutra is a hackathon prototype, not an operational railway-recovery service.
 
 - Live railway status is informational. It does not drive, recalculate or rank recovery alternatives.
-- Journeys, bookings, disruptions and recovery alternatives are simulated. Sutra does not monitor live delays or cancellations and does not detect disruptions on its own.
-- No live ticket availability, live fares, PNR verification or automatic booking, cancellation, payment or refund.
+- Journeys, bookings, disruptions and recovery alternatives are simulated. Sutra does not detect or monitor disruptions on its own.
+- No live ticket availability, live fares or PNR verification.
+- No automatic booking, cancellation, payment or refund. Proposed actions are for the traveller to review.
 - No user accounts or persistent trip storage.
-- The AI only ranks candidates the backend has already found feasible, and it is not a source of railway facts. A live AI recommendation depends on provider availability and a response the backend accepts; otherwise the deterministic fallback applies (or `AI_UNAVAILABLE` in AI-required mode).
-- Live status depends on a RailRadar key and the provider's quota and availability.
+- Not every recommendation is AI-generated. The AI only ranks candidates the backend has already found feasible, and it is not a source of railway facts. If it is unavailable or its result is rejected, the deterministic fallback applies, or `AI_UNAVAILABLE` in AI-required mode.
+- Live status depends on a RailRadar key and the provider's availability and quota.
 
-## Team and project details
+## Team and event
 
-**Team Vyom** - Mangalore Institute of Technology and Engineering (MITE)
+**Team Vyom** · Mangalore Institute of Technology and Engineering (MITE)
 
-- Mayank M Kamath - Team leader
-- Nithesh
-- Likhith M Jogi
-- Keval R Jain
+Nithesh · Mayank M Kamath · Likhith M Jogi · Keval R Jain
 
-**Event:** DevHack 2026 · **Problem statement:** PS 4.1 - AI Agent for Travel Disruption Recovery
+**DevHack 2026** · Problem statement **PS 4.1 — AI Agent for Travel Disruption Recovery**
 
-Further material: [journey API contract](docs/CONFIGURABLE_JOURNEY_API_CONTRACT.md), [planning documents](docs/planning/README.md), [implementation notes](IMPLEMENTATION_NOTES.md). Released under the [MIT License](LICENSE).
+Released under the [MIT License](LICENSE).
